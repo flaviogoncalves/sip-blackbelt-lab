@@ -12,6 +12,7 @@
 set -u
 CASE=$1; NAME=$2
 cd "$(dirname "$0")"; mkdir -p captures
+rm -f captures/$NAME.2001.log captures/$NAME.2002.log   # the phones append: a case with two calls keeps both logs
 ./net.sh >/dev/null
 for p in opensips baresip sipp dnsmasq rtpengine turnserver; do pkill -x $p 2>/dev/null; done; sleep 1
 mkdir -p /run/opensips
@@ -81,12 +82,12 @@ conf() {  # conf <dir> "key value": replace the key's line, commented or not (ba
 hphone() {  # hphone <seconds> [account params] ["key value" config line]: baresip 2001 at 192.168.1.21 behind the NAT
   local d; d=$(./baresip-phone.sh 2001 192.168.1.21 $B1 30000 ";audio_codecs=PCMU/8000/1${2:-}")
   conf "$d" "rtp_stats yes"; conf "$d" "dns_server 127.0.0.1:5353"; [ -n "${3:-}" ] && conf "$d" "$3"
-  $HM timeout "$1" baresip -f "$d" -t "$1" -s > captures/$NAME.2001.log 2>&1 &
+  $HM timeout "$1" baresip -f "$d" -t "$1" -s >> captures/$NAME.2001.log 2>&1 &
 }
 iphone() {  # iphone <seconds> [account params] ["key value" config line]: baresip 2002 at 192.0.2.22 on the internet side
   local d; d=$(./baresip-phone.sh 2002 192.0.2.22 $B2 40000 ";audio_codecs=PCMU/8000/1${2:-}")
   conf "$d" "rtp_stats yes"; [ -n "${3:-}" ] && conf "$d" "$3"
-  timeout "$1" baresip -f "$d" -t "$1" -s > captures/$NAME.2002.log 2>&1 &
+  timeout "$1" baresip -f "$d" -t "$1" -s >> captures/$NAME.2002.log 2>&1 &
 }
 hctl() { sleep "$1"; $HM ./bctl.py $B1 "$2" "${3:-}" >> captures/$NAME.ctl.log 2>&1; }
 ictl() { sleep "$1"; ./bctl.py $B2 "$2" "${3:-}" >> captures/$NAME.ctl.log 2>&1; }
