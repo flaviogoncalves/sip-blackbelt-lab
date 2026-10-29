@@ -26,6 +26,7 @@ pkill -x opensips 2>/dev/null; pkill -x baresip 2>/dev/null; pkill -x sipp 2>/de
 tc qdisc del dev lo root 2>/dev/null
 mkdir -p /run/opensips
 S=scenarios
+[ -f $S/voice-pcmu.wav ] || (cd $S && python3 make_pcmu_wav.py)   # the load calls' audio (generated, not in git)
 B1=4401; B2=4402; B3=4403
 rm -f captures/$NAME.* captures/$NAME-full.*
 
