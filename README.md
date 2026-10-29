@@ -37,7 +37,7 @@ scenarios (`scenarios/`) or baresip phones, and leaves nothing running. The head
 | `take.sh`, `take-reg.sh`, `take-expires.sh`, `take-badpass*.sh`, `take-wrong*.sh`, `take-authloop*.sh`, `take-location*.sh` | 1. Fundamentals, the lab and registration |
 | `take-call.sh`, `take-drop.sh`, `take-route.sh` | 2. Calls, transactions and routing |
 | `take-media.sh` | 3. SDP, media and Wireshark |
-| `take-errors.sh` (+ `sipsend.py`, `requests/`) | 4. Errors, extensions, overload and NAT |
+| `take-errors.sh` (+ `sipsend.py`, `requests/`), `take-nat.sh` (+ `nat.sh`) | 4. Errors, extensions, overload and NAT |
 
 Addresses: OpenSIPS (`lab.sip`) 192.0.2.10; phones 2001, 2002, 2003 at 192.0.2.21, .22, .23 (`net.sh`).
 Open the pcaps in Wireshark on your laptop, or read them on the box with sngrep and tshark.

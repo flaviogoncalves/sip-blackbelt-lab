@@ -12,7 +12,8 @@ users:
 ssh_pwauth: false
 disable_root: true
 package_update: true
-packages: [curl, gnupg, ca-certificates, ufw, sngrep, tcpdump, sip-tester, baresip, nano, git, bind9-dnsutils, dnsmasq-base, sqlite3, tcpreplay, iproute2]
+# conntrack (the router's NAT table) and coturn (STUN/TURN server; disabled below, take-nat.sh starts it): section 4 NAT takes
+packages: [curl, gnupg, ca-certificates, ufw, sngrep, tcpdump, sip-tester, baresip, nano, git, bind9-dnsutils, dnsmasq-base, sqlite3, tcpreplay, iproute2, conntrack, coturn]
 runcmd:
   - [sh, -c, "echo 'wireshark-common wireshark-common/install-setuid boolean false' | debconf-set-selections"]
   - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y tshark"]
@@ -22,6 +23,7 @@ runcmd:
   - [sh, -c, "for p in opensips-tls-module opensips-tls-openssl-module opensips-tlsmgm-module opensips-wss-module opensips-presence-modules; do DEBIAN_FRONTEND=noninteractive apt-get install -y $p || echo \"sip-lab: optional $p failed\" >> /var/log/sip-lab-init.log; done"]
   - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends rtpengine-daemon rtpengine-utils && systemctl disable --now rtpengine-daemon"]
   - [sh, -c, "systemctl disable --now opensips || true"]
+  - [sh, -c, "systemctl disable --now coturn || true"]
   - [sh, -c, "ufw default deny incoming && ufw allow 22/tcp && ufw --force enable"]
   # the lab scripts (takes, SIPp scenarios, lab.cfg) from the course's public repo, into /home/lab/lab
   - [sh, -c, "git clone --depth 1 https://github.com/flaviogoncalves/sip-blackbelt-lab /home/lab/lab && chown -R lab:lab /home/lab/lab"]
