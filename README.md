@@ -26,7 +26,7 @@ over documentation addresses (192.0.2.x) on dummy interfaces inside the box, so 
 ```
 cd ~/lab
 sudo ./take.sh s1-call            # register two phones, make a call, save captures/s1-call.pcap
-python3 pcap_messages.py captures/s1-call.pcap   # every SIP message as text
+sudo python3 pcap_messages.py captures/s1-call.pcap   # writes captures/s1-call.messages.txt: every SIP message as text
 ```
 
 Each `take-*.sh` script starts OpenSIPS with `opensips/lab.cfg`, captures on the loopback, plays one case with SIPp
