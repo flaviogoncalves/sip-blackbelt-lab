@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 4.6: an overloaded server (the first SRV target): it answers every REGISTER and INVITE 503 Service Unavailable
+     with Retry-After: 120 (RFC 3261 21.5.4) and takes the ACK of an INVITE. Each request is a new SIPp call: run it with
+     no -m, under a timeout. -->
+<scenario name="sip-lab server that is overloaded">
+  <recv request="REGISTER|INVITE" regexp_match="true" crlf="true"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 503 Service Unavailable
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Retry-After: 120
+      Server: sip-lab sip1
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv request="ACK" timeout="3000" ontimeout="done"/>
+  <label id="done"/>
+</scenario>

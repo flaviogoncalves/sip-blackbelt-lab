@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 4.3: a MESSAGE (RFC 3428) with a body of the type given by -set ctype (and the text of -set body). A phone that
+     cannot read the type answers 415 Unsupported Media Type with Accept (RFC 3261 8.2.3, 21.4.13); a type it reads gets
+     200. Through the proxy with proxy authentication: MESSAGE -> 407 -> MESSAGE + Proxy-Authorization. -->
+<scenario name="sip-lab MESSAGE with a body type">
+  <Global variables="callee,ctype,body"/>
+  <send retrans="500">
+    <![CDATA[
+      MESSAGE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 MESSAGE
+      User-Agent: sip-lab phone [service]
+      Content-Type: [$ctype]
+      Content-Length: [len]
+
+      [$body]
+    ]]>
+  </send>
+  <recv response="407" auth="true"/>
+  <send retrans="500">
+    <![CDATA[
+      MESSAGE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 MESSAGE
+      [authentication]
+      User-Agent: sip-lab phone [service]
+      Content-Type: [$ctype]
+      Content-Length: [len]
+
+      [$body]
+    ]]>
+  </send>
+  <recv response="415" optional="true" next="done"/>
+  <recv response="200"/>
+  <label id="done"/>
+</scenario>

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 4.7: the same session timer (Session-Expires: 90;refresher=uac), but this caller never refreshes. It waits;
+     the callee ends the call with BYE before the session expires (RFC 4028 section 10) and the caller answers 200.
+     Through the proxy with proxy authentication: INVITE -> 407 -> ACK -> INVITE + Proxy-Authorization. Caller = -s,
+     callee = -set callee, credentials = -au/-ap. An ACK to a non-2xx reuses its INVITE's branch (RFC 3261 17.1.1.3):
+     [branch-3] = the message three places back. -->
+<scenario name="sip-lab call that never refreshes its session timer">
+  <Global variables="callee"/>
+  <send>
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Supported: timer
+      Session-Expires: 90
+      Min-SE: 90
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0 8 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch-3]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send>
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      Supported: timer
+      Session-Expires: 90
+      Min-SE: 90
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0 8 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="200" rrs="true"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <!-- no refresh: wait for the callee's BYE -->
+  <recv request="BYE"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+</scenario>

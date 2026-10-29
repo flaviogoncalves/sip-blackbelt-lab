@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 4.7: a callee that accepts Session-Expires: 90;refresher=uac and waits for the caller's refresh. None comes, so
+     it sends BYE before the session expires: at 90 s minus the smaller of 32 s and a third of 90 s = 60 s after the 200
+     (RFC 4028 section 10). The INVITE's From is kept for the BYE's To. -->
+<scenario name="sip-lab callee that ends an unrefreshed session">
+  <recv request="INVITE" crlf="true" rrs="true">
+    <action>
+      <ereg regexp=".*" search_in="hdr" header="From:" assign_to="ifrom"/>
+      <ereg regexp=".*" search_in="hdr" header="To:" assign_to="ito"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <pause milliseconds="1000"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Require: timer
+      Supported: timer
+      Session-Expires: 90;refresher=uac
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK" crlf="true"/>
+  <!-- no refresh arrives: BYE at 60 s -->
+  <pause milliseconds="60000"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: [$ito];tag=[pid]SIPpTag02[call_number]
+      To: [$ifrom]
+      Call-ID: [call_id]
+      CSeq: 1 BYE
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+</scenario>
