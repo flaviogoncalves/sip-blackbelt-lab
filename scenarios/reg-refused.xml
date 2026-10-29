@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- REGISTER whose credentials the server refuses: REGISTER -> 401 -> REGISTER + Authorization -> 401 again. -->
+<scenario name="sip-lab register, credentials refused">
+  <send>
+    <![CDATA[
+      REGISTER sip:lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag00[call_number]
+      To: <sip:[service]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 REGISTER
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Expires: 3600
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="401" auth="true"/>
+  <send>
+    <![CDATA[
+      REGISTER sip:lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag00[call_number]
+      To: <sip:[service]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 REGISTER
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Expires: 3600
+      [authentication]
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="401"/>
+</scenario>

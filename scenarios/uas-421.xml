@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 3.6: the callee requires reliable provisional responses; the INVITE did not offer 100rel, so it answers
+     421 Extension Required with Require: 100rel (RFC 3262 section 3, RFC 3261 21.4.16). -->
+<scenario name="sip-lab callee that requires 100rel">
+  <recv request="INVITE" crlf="true"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 421 Extension Required
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Require: 100rel
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv request="ACK" optional="false"/>
+</scenario>

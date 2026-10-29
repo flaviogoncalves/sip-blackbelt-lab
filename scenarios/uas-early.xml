@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 3.4: early media. The callee answers 183 Session Progress with SDP and starts sending RTP (an audio
+     clip, as an announcement or a network ringback would) before the call is answered; the 200 OK comes 5 s later. -->
+<scenario name="sip-lab callee with early media">
+  <recv request="INVITE" crlf="true"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 183 Session Progress
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <exec play_pcap_audio="/usr/share/sip-tester/g711a.pcap"/>
+    </action>
+  </nop>
+  <pause milliseconds="5000"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK" crlf="true"/>
+  <recv request="BYE"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+</scenario>

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- The 488 ticket's fix: the same call offering G.729 (payload 18), the one codec the trunk takes. No RTP is sent: the
+     take proves the signaling (200 OK with G.729 in the answer). Same flow as call.xml. -->
+<scenario name="sip-lab call offering G.729">
+  <Global variables="callee"/>
+  <send>
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 18 101
+      a=rtpmap:18 G729/8000
+      a=fmtp:18 annexb=no
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch-3]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send>
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1002 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 18 101
+      a=rtpmap:18 G729/8000
+      a=fmtp:18 annexb=no
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="200" rrs="true"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <pause milliseconds="3000"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 3 BYE
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+</scenario>

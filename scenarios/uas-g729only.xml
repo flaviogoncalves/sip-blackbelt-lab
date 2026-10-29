@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- The 488 ticket's far end: a trunk that takes G.729 only. An INVITE whose offer has no G729 gets 488 Not Acceptable
+     Here (RFC 3261 21.4.26) with Warning 305 "Incompatible media format" (RFC 3261 20.43) and the ACK; an offer with
+     G729 gets 200 OK answering payload 18, then the ACK and the BYE. -->
+<scenario name="sip-lab trunk that takes G.729 only">
+  <recv request="INVITE" crlf="true">
+    <action>
+      <ereg regexp="G729/8000" search_in="body" check_it="false" assign_to="g729"/>
+    </action>
+  </recv>
+  <nop next="answer" test="g729"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 488 Not Acceptable Here
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Warning: 305 192.0.2.22 "Incompatible media format"
+      User-Agent: sip-lab trunk
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv request="ACK" next="end"/>
+  <label id="answer"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab trunk
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=trunk 3001 3001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 18 101
+      a=rtpmap:18 G729/8000
+      a=fmtp:18 annexb=no
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK" crlf="true"/>
+  <recv request="BYE"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <label id="end"/>
+</scenario>

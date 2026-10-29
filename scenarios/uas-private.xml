@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 3.7 ticket: a callee behind NAT whose 200 OK advertises its private address (192.168.1.22) in Contact and
+     SDP. The caller's ACK follows that Contact and never arrives, so the callee retransmits the 200 (T1 doubling up to
+     T2) and, when 64*T1 has passed without an ACK, ends the call with a BYE (RFC 3261 13.3.1.4). SIPp aborts its own
+     2xx retransmission after nine resends, so the eleven sends are written out here at T1 = 500 ms doubling to T2 = 4 s
+     (0, 0.5, 1.5, 3.5, 7.5 ... 31.5 s) and the BYE goes at 32 s. -->
+<scenario name="sip-lab callee with a private Contact">
+  <recv request="INVITE" crlf="true" rrs="true">
+    <action>
+      <ereg regexp=".*" search_in="hdr" header="From:" assign_to="ifrom"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <pause milliseconds="1500"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="500"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="1000"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="2000"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="4000"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="4000"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="4000"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="4000"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="4000"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="4000"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="4000"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.168.1.22:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 192.168.1.22
+      s=sip-lab
+      c=IN IP4 192.168.1.22
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <pause milliseconds="500"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag02[call_number]
+      To: [$ifrom]
+      Call-ID: [call_id]
+      CSeq: 1 BYE
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+</scenario>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- A callee whose 200 OK advertises an unreachable Contact (192.0.2.99), so the ACK never arrives. It retransmits the
+     200 on Timer A/B spacing, then at Timer H (64*T1 = 32 s) sends BYE and leaves the dialog (RFC 3261 17.1.1.2, 13.3.1.4). -->
+<scenario name="sip-lab callee that never gets the ACK">
+  <recv request="INVITE" crlf="true"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=uas-drop
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <pause milliseconds="1500"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=uas-drop
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@192.0.2.99:5060>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <!-- Wait past Timer H (64*T1 = 32 s): SIPp ends the call when the 200 transaction times out. -->
+  <pause milliseconds="60000"/>
+</scenario>

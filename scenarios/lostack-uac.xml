@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- A caller that never ACKs the 200 OK: INVITE -> 407 -> ACK -> INVITE + Proxy-Authorization -> 180 -> 200, then no
+     ACK. The callee retransmits the 200 until Timer H and sends BYE at about 32 s (RFC 3261 17.1.1.2). -->
+<scenario name="sip-lab caller that drops the ACK">
+  <Global variables="callee"/>
+  <send>
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0 8 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch-3]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send>
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1002 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0 8 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="200" rrs="true"/>
+  <!-- No ACK. Wait past Timer H (64*T1 = 32 s): the callee gives up and the call is gone. -->
+  <pause milliseconds="33000"/>
+</scenario>

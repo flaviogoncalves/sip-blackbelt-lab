@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- A phone that registers to the wrong domain: REGISTER sip:wrong.sip -> 404 Not Found (RFC 3261 21.4.5). -->
+<scenario name="sip-lab register to the wrong domain">
+  <send>
+    <![CDATA[
+      REGISTER sip:wrong.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@wrong.sip>;tag=[pid]SIPpTag00[call_number]
+      To: <sip:[service]@wrong.sip>
+      Call-ID: [call_id]
+      CSeq: 1 REGISTER
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Expires: 3600
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="404"/>
+</scenario>

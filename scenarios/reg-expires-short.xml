@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- REGISTER with an Expires below the registrar minimum: REGISTER -> 423 Interval Too Brief with Min-Expires.
+     The lab rejects before the challenge. Use -set expires 30. -->
+<scenario name="sip-lab register with a short expires">
+  <Global variables="expires"/>
+  <send>
+    <![CDATA[
+      REGISTER sip:lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag00[call_number]
+      To: <sip:[service]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 REGISTER
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Expires: [$expires]
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="423"/>
+</scenario>
