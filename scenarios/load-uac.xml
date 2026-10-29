@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Section 3 (Wireshark): a busy proxy's callers. Each call takes one line of the injection file (-inf): field0 = the
+     number called, field1 = how long an answered call lasts (ms). INVITE -> 407 -> ACK -> INVITE + Proxy-Authorization,
+     then the callee's answer: 200 (ACK, RTP both ways from rtp_stream, BYE after field1 ms) or a refusal (404, 408, 486,
+     500, 503: ACK). Each call gets its own RTP port ([rtpstream_audio_port], -min_rtp_port/-max_rtp_port). -->
+<scenario name="sip-lab load caller">
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[field0]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[field0]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab gateway
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] [call_number] 1 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [rtpstream_audio_port] RTP/AVP 0 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=ptime:20
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK sip:[field0]@lab.sip SIP/2.0
+      [last_Via:]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[field0]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[field0]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      User-Agent: sip-lab gateway
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] [call_number] 2 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [rtpstream_audio_port] RTP/AVP 0 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=ptime:20
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="404" optional="true" next="refused"/>
+  <recv response="486" optional="true" next="refused"/>
+  <recv response="500" optional="true" next="refused"/>
+  <recv response="503" optional="true" next="refused"/>
+  <recv response="408" optional="true" next="refused"/>
+  <recv response="200" rrs="true"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <exec rtp_stream="voice-pcmu.wav,-1,0"/>
+      <assignstr assign_to="holdstr" value="[field1]"/>
+      <todouble assign_to="hold" variable="holdstr"/>
+    </action>
+  </nop>
+  <pause variable="hold"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 3 BYE
+      User-Agent: sip-lab gateway
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200" next="end"/>
+
+  <label id="refused"/>
+  <send>
+    <![CDATA[
+      ACK sip:[field0]@lab.sip SIP/2.0
+      [last_Via:]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <label id="end"/>
+</scenario>
