@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.13, a pickup that comes too late (RFC 5359 2.16 + RFC 3891 3): Bill (-s) fetches Bob's dialog state
+     (-set target) exactly as pickup-bill.xml does (SUBSCRIBE Event: dialog, Expires: 0, one NOTIFY with the ringing
+     dialog), then waits 2 s before his INVITE with Replaces: <call-id>;to-tag=<caller's tag>;
+     from-tag=<Bob's tag>;early-only. Meanwhile Bob answers; the caller (a real phone) refuses the INVITE. Bill takes
+     whatever final error comes back (481, 486 or 603: RFC 3891's three refusals) and ACKs it. Credentials -au/-ap.
+     The INVITE is a second dialog of this SIPp call: Call-ID "pickup///<the SUBSCRIBE's Call-ID>". -->
+<scenario name="sip-lab call pickup too late, Bill">
+  <Global variables="target"/>
+  <send retrans="500">
+    <![CDATA[
+      SUBSCRIBE sip:[$target]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$target]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 SUBSCRIBE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Event: dialog
+      Accept: application/dialog-info+xml
+      Expires: 0
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="407" auth="true"/>
+  <send retrans="500">
+    <![CDATA[
+      SUBSCRIBE sip:[$target]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$target]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 SUBSCRIBE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      Event: dialog
+      Accept: application/dialog-info+xml
+      Expires: 0
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+  <recv request="NOTIFY">
+    <action>
+      <ereg regexp="call-id=\"([^\"]+)\"" search_in="msg" assign_to="cid,cid"/>
+      <ereg regexp="local-tag=\"([^\"]+)\"" search_in="msg" assign_to="btag,btag"/>
+      <ereg regexp="remote-tag=\"([^\"]+)\"" search_in="msg" assign_to="atag,atag"/>
+      <ereg regexp="&lt;remote&gt;&lt;identity&gt;([^&lt;]+)" search_in="msg" assign_to="caller,caller"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <!-- Bill is slow: Bob answers during this pause -->
+  <pause milliseconds="2000"/>
+
+  <!-- F7: INVITE to the caller with Replaces (early-only: only while Bob's phone is still ringing) -->
+  <send retrans="500">
+    <![CDATA[
+      INVITE [$caller] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-pick1
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag04[call_number]
+      To: <[$caller]>
+      Call-ID: pickup///[call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 4001 4001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK [$caller] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-pick1
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag04[call_number]
+      [last_To:]
+      Call-ID: pickup///[call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      INVITE [$caller] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-pick2
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag04[call_number]
+      To: <[$caller]>
+      Call-ID: pickup///[call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      Replaces: [$cid];to-tag=[$atag];from-tag=[$btag];early-only
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 4001 4002 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="481" optional="true" next="refused"/>
+  <recv response="603" optional="true" next="refused"/>
+  <recv response="486"/>
+  <label id="refused"/>
+  <!-- the ACK of a non-2xx: same branch as the INVITE, the To of the response -->
+  <send>
+    <![CDATA[
+      ACK [$caller] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-pick2
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag04[call_number]
+      [last_To:]
+      Call-ID: pickup///[call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+</scenario>

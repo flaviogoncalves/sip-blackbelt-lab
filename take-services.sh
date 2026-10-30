@@ -3,14 +3,15 @@
 # voicemail light, third-party call control, MESSAGE and INFO): RFC 5359 sections 2.7-2.18 and the event packages.
 # Same plumbing as take-errors.sh: baresip phones where a real phone can play the role (baresip-phone.sh, driven by
 # bctl.py), SIPp where baresip 1.1.0 cannot (it ignores Replaces, refuses Join with 420, answers an out-of-dialog REFER
-# with 501, has no dialog event package and no Info Packages), OpenSIPS as the proxy. Most cases run lab.cfg with
+# with 501, has no dialog event package and no Info Packages), pjsua 2.17 (/usr/local/bin/pjsua, built by cloud-init) for
+# a phone that mixes a conference in its own bridge and a phone that refuses an INVITE with Replaces, OpenSIPS as the proxy. Most cases run lab.cfg with
 # changes (forwarding rules, hunt groups, presence server, message store), saved as captures/<name>.cfg.diff.
 #   sudo ./take-services.sh <case> <name>
 # Addresses: proxy 192.0.2.10, phones 2001-2003 = 192.0.2.21-.23 (baresip or SIPp), 2004/2005 = 192.0.2.24/.25 (SIPp),
 # 192.0.2.30 = an application server (voicemail, park server, 3PCC controller, "Bob's PC"), trusted by the proxy by its
 # address (no digest). Bob the conference host is a SIPp phone at 192.0.2.22.
 # Cases (lesson): fwd302 fwdcfu fwdbusy fwdnoans (5.9), histdiv histhi (5.10), hunt ring (5.11), confadd confjoin joinbaresip
-# joinbaresip (5.12), park pickup (5.13), blf mwi (5.14), 3pcc clickrefer redial (5.15), message infopkg infophone infodtmf (5.16),
+# confmix (5.12), park pickup pickupfail (5.13), blf mwi (5.14), 3pcc clickrefer redial (5.15), message infopkg infophone infodtmf (5.16),
 # ticket ticketfix (5.17). Each writes captures/<name>.pcap (SIP + RTP + ICMP on lo), .txt (SIP summary),
 # .messages.txt (pcap_messages.py), .rtp.txt, .media.txt, the logs of every element (SIPp: <tag>.log and the messages
 # it sent and got, <tag>.msg.log) and .cfg.diff. Leaves nothing running (extra addresses removed, the presence and
@@ -22,7 +23,7 @@ set -u
 CASE=$1; NAME=$2
 cd "$(dirname "$0")"; mkdir -p captures
 ./net.sh >/dev/null
-pkill -x opensips 2>/dev/null; pkill -x baresip 2>/dev/null; pkill -x sipp 2>/dev/null; sleep 1
+pkill -x opensips 2>/dev/null; pkill -x baresip 2>/dev/null; pkill -x sipp 2>/dev/null; pkill -x pjsua 2>/dev/null; sleep 1
 tc qdisc del dev lo root 2>/dev/null
 mkdir -p /run/opensips
 S=scenarios
@@ -82,7 +83,7 @@ HUNT_ROUTES=$'\n# lesson 5.11: one member of the hunt group, with a 6 s no-answe
 FWD_ARM=$'\t# lesson 5.9: call forwarding on busy and on no answer for 2002 (to 2003), with an 8 s no-answer timer\n\tif ($rU == "2002") {\n\t\t$T_fr_inv_timeout = 8;\n\t\tt_on_failure("forward");\n\t}\n'
 
 case $CASE in
-  blf|mwi|pickup|redial|ticket|ticketfix) presence ;;
+  blf|mwi|pickup|pickupfail|redial|ticket|ticketfix) presence ;;
   # the 3PCC controller is the application server at 192.0.2.30
   3pcc)    trusted ;;
   # RFC 5359 2.7: the proxy itself forwards every call for 2002 to 2003 (the target is just another URI to it)
@@ -149,6 +150,33 @@ bg() { "$@" & BGP+=($!); }   # run a SIPp caller in the background
 bgwait() { [ ${#BGP[@]} -gt 0 ] && wait "${BGP[@]}"; }
 ctl() { sleep "$1"; ./bctl.py "$2" "$3" "${4:-}" >> captures/$NAME.ctl.log 2>&1; }
 dial() { ctl 0 $1 dial "$2"; }
+# pjsua phones, as in take-callctl.sh: one process at its own 192.0.2.x address, no sound card (--null-audio: silence
+# unless it plays a file), PCMU only, no session timer, no VAD; driven through its console (a FIFO as stdin): pj types
+# the keys a person would (m call, h hang up, ha hang up all, cl list the conference ports, cc <src> <dst> connect two
+# ports) and logs them in <name>.ctl.log; its log (every SIP message) is <name>.<user>.log, its screen
+# <name>.<user>.console.log
+HOLDERS=()   # the processes that keep each pjsua console's FIFO open
+PJSUA_COMMON=(--null-audio --no-tcp --local-port 5060 --dis-codec "" --add-codec PCMU --use-timer 0 --no-vad
+              --log-level 4 --app-log-level 3)
+pjphone() {  # pjphone <user> <ip> <rtp-port> <seconds> [pjsua options]
+  local u=$1 ip=$2 rtp=$3 secs=$4 fifo=/tmp/pjsua-$1.in; shift 4
+  rm -f "$fifo"; mkfifo "$fifo"
+  sleep "$secs" > "$fifo" & HOLDERS+=($!)
+  timeout "$secs" stdbuf -oL pjsua --id "sip:$u@lab.sip" --registrar sip:lab.sip --realm lab.sip --username "$u" \
+    --password "lab-$u-pass" --ip-addr "$ip" --bound-addr "$ip" --rtp-port "$rtp" "${PJSUA_COMMON[@]}" \
+    --log-file "captures/$NAME.$u.log" "$@" < "$fifo" > "captures/$NAME.$u.console.log" 2>&1 &
+}
+pj() {  # pj <delay> <user> <line> [line ...]: wait, then type these lines into that pjsua console
+  sleep "$1"; local u=$2; shift 2
+  timeout 2 bash -c 'printf "%s\n" "${@:2}" > "$1"' _ "/tmp/pjsua-$u.in" "$@" || echo "pj: $u is not running"
+  echo "$(date +%T.%3N) $u: $*" >> captures/$NAME.ctl.log
+}
+tone() {  # tone <Hz> <file>: 3 s of a sine at 8 kHz, 16-bit mono (pjsua --play-file loops it)
+  python3 -c 'import math, struct, sys, wave
+f, p = float(sys.argv[1]), sys.argv[2]
+w = wave.open(p, "wb"); w.setnchannels(1); w.setsampwidth(2); w.setframerate(8000)
+w.writeframes(b"".join(struct.pack("<h", int(8000 * math.sin(2 * math.pi * f * n / 8000))) for n in range(24000)))' "$1" "$2"
+}
 
 case $CASE in
   # busy lamp: SIPp 2003 (192.0.2.23) watches 2002 (Event: dialog, Expires 60, refreshes after 15 quiet seconds, then
@@ -240,6 +268,29 @@ case $CASE in
               -oocsf $S/park-alice-ooc.xml -callid_slash_ign -cid_str "%u-%p-%s"
             sleep 10; uac park-carol.xml 16 carol 2003 192.0.2.23 50000 -auth_uri park@lab.sip -set target park
             bgwait ;;
+  # lesson 5.12, a real mixer (RFC 5359 2.10 without its signalling): Bob is pjsua 2002, whose conference bridge mixes
+  # the calls. Alice (pjsua 2001) and Carol (pjsua 2003) answer at once and play a tone each (Alice 400 Hz, Carol
+  # 1100 Hz); Bob plays 700 Hz (his "voice", a file not yet connected to anything). Bob calls Alice, 4 s later calls
+  # Carol (Alice stays connected, no hold), lists his bridge ports (cl: #0 his null sound device, #1 his tone file, #2
+  # ringback, #3 ring, #4 Alice's call, #5 Carol's call), then connects them (cc <src> <dst>): Alice's call <-> Carol's
+  # call and his tone -> both calls. 8 s of conference, then Bob hangs up both (ha). captures/<name>.mix.txt measures
+  # each RTP leg second by second (level, share of 400/700/1100 Hz in the decoded PCMU)
+  confmix)  tone 400 /tmp/lab-tone-alice.wav; tone 700 /tmp/lab-tone-bob.wav; tone 1100 /tmp/lab-tone-carol.wav
+            pjphone 2001 192.0.2.21 30000 40 --auto-answer 200 --play-file /tmp/lab-tone-alice.wav --auto-play
+            pjphone 2003 192.0.2.23 50000 40 --auto-answer 200 --play-file /tmp/lab-tone-carol.wav --auto-play
+            pjphone 2002 192.0.2.22 40000 40 --play-file /tmp/lab-tone-bob.wav; sleep 3
+            pj 0 2002 "m" "sip:2001@lab.sip"; pj 4 2002 "m" "sip:2003@lab.sip"; pj 4 2002 cl
+            pj 1 2002 "cc 4 5" "cc 5 4" "cc 1 4" "cc 1 5"; pj 1 2002 cl; pj 7 2002 ha; sleep 2 ;;
+  # lesson 5.13, a pickup that fails: Alice (pjsua 2001, a phone that implements Replaces) calls Bob (baresip 2002), which
+  # rings and answers after 4 s; at 3 s Bill (SIPp 2003) fetches Bob's dialog state (early) and waits 2 s
+  # (pickup-bill-late.xml), so his INVITE with Replaces: ...;early-only reaches Alice in a confirmed call and she refuses
+  # it. Alice and Bob talk on; Alice hangs up 6 s after Bob answered
+  pickupfail)
+            phone 2002 192.0.2.22 $B2 40000 30 ";answermode=auto;answerdelay=4000"; pjphone 2001 192.0.2.21 30000 30
+            sipp_reg 2003 192.0.2.23; sleep 3
+            pj 0 2001 "m" "sip:2002@lab.sip"; sleep 3
+            bg uac pickup-bill-late.xml 16 bill 2003 192.0.2.23 50000 -auth_uri 2001@lab.sip -set target 2002
+            pj 7 2001 h; sleep 1; bgwait ;;
   # RFC 3725 Flow I: the controller (SIPp at 192.0.2.30) sets up a call between baresip 2001 (A, answers after 1 s)
   # and baresip 2002 (B, answers after 2.5 s: A resends its 200 meanwhile); A hangs up 6 s after B answered
   3pcc)     addr 192.0.2.30
@@ -328,7 +379,8 @@ PY
   *) echo "unknown case $CASE"; exit 2 ;;
 esac
 
-sleep 1; pkill -x baresip 2>/dev/null; pkill -x sipp 2>/dev/null
+sleep 1; pkill -x baresip 2>/dev/null; pkill -x sipp 2>/dev/null; pkill -x pjsua 2>/dev/null
+for p in "${HOLDERS[@]}"; do kill "$p" 2>/dev/null; done; rm -f /tmp/pjsua-*.in /tmp/lab-tone-*.wav
 kill $TCPD 2>/dev/null; sleep 1; kill $OSIPS 2>/dev/null; sleep 1
 for a in "${ADDRS[@]}"; do ip addr del "$a/32" dev lab0 2>/dev/null; done
 rm -rf /tmp/lab-presence
@@ -338,6 +390,41 @@ tshark -r captures/$NAME.pcap -o rtp.heuristic_rtp:TRUE -q -z rtp,streams 2>/dev
 tshark -r captures/$NAME.pcap -o rtp.heuristic_rtp:TRUE -Y "rtp or icmp" -T fields -e frame.number -e frame.time_relative \
   -e ip.src -e ip.dst -e udp.dstport -e rtp.p_type -e _ws.col.Protocol 2>/dev/null > captures/$NAME.media.txt
 (cd captures && python3 ../pcap_messages.py "$NAME.pcap" >/dev/null)
+# confmix: which tones each RTP leg carries, second by second (PCMU decoded; share of the window's energy at each tone)
+[ $CASE = confmix ] && tshark -r captures/$NAME.pcap -o rtp.heuristic_rtp:TRUE -Y "rtp.p_type == 0" -T fields \
+  -e frame.time_relative -e ip.src -e udp.srcport -e ip.dst -e udp.dstport -e rtp.payload 2>/dev/null | python3 -c '
+import collections, math, sys
+def ulaw(b):
+    b = ~b & 0xFF
+    s = (((b & 0x0F) << 3) + 0x84) << ((b >> 4) & 7)
+    return -(s - 0x84) if b & 0x80 else s - 0x84
+TAB = [ulaw(i) for i in range(256)]
+TONES = [(400, "Alice"), (700, "Bob"), (1100, "Carol")]
+win = collections.defaultdict(list)
+for line in sys.stdin:
+    t, s, sp, d, dp, pl = line.rstrip("\n").split("\t")
+    if pl:
+        win[(f"{s}:{sp} -> {d}:{dp}", int(float(t)))] += [TAB[x] for x in bytes.fromhex(pl.replace(":", ""))]
+def share(x, f):  # Goertzel power at f over the window energy: 1.0 = a pure tone, 0.5 each for two equal tones
+    c = 2 * math.cos(2 * math.pi * f / 8000); s1 = s2 = 0.0
+    for v in x:
+        s1, s2 = v + c * s1 - s2, s1
+    e = sum(v * v for v in x)
+    return 0.0 if e == 0 else 2 * (s1 * s1 + s2 * s2 - c * s1 * s2) / (len(x) * e)
+print("# each RTP leg, per second of the capture: packets, level (dBFS), share of the energy at 400 Hz (Alice), 700 Hz")
+print("# (Bob) and 1100 Hz (Carol); silence = digital silence (all samples 0)")
+legs = sorted({k[0] for k in win})
+for leg in legs:
+    print(f"\n{leg}")
+    for sec in sorted(k[1] for k in win if k[0] == leg):
+        x = win[(leg, sec)]
+        e = sum(v * v for v in x) / len(x)
+        if e == 0:
+            print(f"  {sec:3d}-{sec + 1:<3d} s  {len(x) // 160:3d} pkts  silence"); continue
+        lvl = 10 * math.log10(e / 32768 ** 2)
+        print(f"  {sec:3d}-{sec + 1:<3d} s  {len(x) // 160:3d} pkts  {lvl:6.1f} dBFS  " +
+              "  ".join(f"{f} Hz {share(x, f):.2f}" for f, n in TONES))
+' > captures/$NAME.mix.txt
 # baresip logs its local address (the droplet's public IP): mask every eth0/eth1 IPv4 in what this take wrote
 for A in $(ip -4 -o addr show | awk '$2 ~ /^eth/ {split($4, a, "/"); print a[1]}'); do
   sed -i "s/${A//./\\.}/203.0.113.10/g" captures/$NAME.*.log captures/$NAME.*txt captures/$NAME.cfg.diff 2>/dev/null
