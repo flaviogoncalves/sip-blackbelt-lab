@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.13, RFC 5359 2.15 (call park), the park server (sip:park@lab.sip, SIPp at 192.0.2.30, trusted by the
+     proxy; run with -m 2). A REFER (from Bob): 202, NOTIFY 100 Trying (Event: refer), then an INVITE to the Refer-To
+     target with the Replaces and Require taken from its URI headers, Referred-By and Contact ;automaton; Alice answers;
+     ACK; music (rtp_stream of voice-pcmu.wav, looped); 1 s later NOTIFY 200 OK to Bob (Subscription-State:
+     terminated;reason=noresource); the music stops on Alice's BYE. A SUBSCRIBE (from Carol, Event: dialog, Expires:
+     0): 200 and one NOTIFY (terminated;reason=timeout) whose dialog-info body describes the parked dialog (kept in
+     global variables by the REFER's call). The INVITE to Alice is a second dialog of the REFER's SIPp call: Call-ID
+     "parked///<the part of the REFER's Call-ID after ///>". -->
+<scenario name="sip-lab call park, the park server">
+  <Global variables="pcid,ptag,atag,acontact"/>
+  <recv request="REFER" optional="true" rrs="true" next="refer">
+    <action>
+      <ereg regexp="&lt;([^?]+)\?Replaces=([^%]+)%3Bto-tag%3D([^%]+)%3Bfrom-tag%3D([^&amp;&gt;]+)" search_in="hdr"
+            header="Refer-To:" assign_to="target,target,rcid,rto,rfrom"/>
+      <ereg regexp="&lt;[^&gt;]+&gt;" search_in="hdr" header="Referred-By:" assign_to="referredby"/>
+      <ereg regexp="///(.*)" search_in="hdr" header="Call-ID:" assign_to="x,x"/>
+      <ereg regexp="&lt;.*" search_in="hdr" header="From:" assign_to="bob"/>
+    </action>
+  </recv>
+  <recv request="SUBSCRIBE" rrs="true" next="subscribe">
+    <action>
+      <ereg regexp="&lt;.*" search_in="hdr" header="From:" assign_to="carol"/>
+    </action>
+  </recv>
+
+  <label id="refer"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 202 Accepted
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag08[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:park@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      NOTIFY [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:park@lab.sip>;tag=[pid]SIPpTag08[call_number]
+      To: [$bob]
+      Call-ID: park///[$x]
+      CSeq: 1 NOTIFY
+      Event: refer
+      Subscription-State: active;expires=60
+      Contact: <sip:park@[local_ip]:[local_port]>
+      Content-Type: message/sipfrag
+      Content-Length: [len]
+
+      SIP/2.0 100 Trying
+    ]]>
+  </send>
+  <recv response="200"/>
+
+  <!-- F9: the park server calls Alice and replaces her dialog with Bob -->
+  <send retrans="500">
+    <![CDATA[
+      INVITE [$target] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:park@lab.sip>;tag=[pid]SIPpTag09[call_number]
+      To: <[$target]>
+      Call-ID: parked///[$x]
+      CSeq: 1 INVITE
+      Contact: <sip:park@[local_ip]:[local_port]>;automaton
+      Referred-By: [$referredby]
+      Require: replaces
+      Replaces: [$rcid];to-tag=[$rto];from-tag=[$rfrom]
+      Supported: replaces
+      User-Agent: sip-lab park server
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=park 3001 3001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [rtpstream_audio_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendonly
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="200">
+    <action>
+      <ereg regexp=";tag=([^;&gt; ]+)" search_in="hdr" header="To:" assign_to="atag,atag"/>
+      <ereg regexp="sip:[^&gt;;]+" search_in="hdr" header="Contact:" assign_to="acontact"/>
+      <ereg regexp="&lt;[^&gt;]+&gt;" search_in="hdr" header="Record-Route:" assign_to="arr"/>
+      <assignstr assign_to="pcid" value="parked///[$x]"/>
+      <assignstr assign_to="ptag" value="[pid]SIPpTag09[call_number]"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      ACK [$acontact] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Route: [$arr]
+      Max-Forwards: 70
+      From: <sip:park@lab.sip>;tag=[pid]SIPpTag09[call_number]
+      To: <[$target]>;tag=[$atag]
+      Call-ID: parked///[$x]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <exec rtp_stream="voice-pcmu.wav,-1,0"/>
+    </action>
+  </nop>
+  <pause milliseconds="1000"/>
+  <!-- F14: tell Bob the park worked (the REFER's implicit subscription ends) -->
+  <send retrans="500">
+    <![CDATA[
+      NOTIFY [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:park@lab.sip>;tag=[pid]SIPpTag08[call_number]
+      To: [$bob]
+      Call-ID: park///[$x]
+      CSeq: 2 NOTIFY
+      Event: refer
+      Subscription-State: terminated;reason=noresource
+      Contact: <sip:park@[local_ip]:[local_port]>;automaton
+      Content-Type: message/sipfrag
+      Content-Length: [len]
+
+      SIP/2.0 200 OK
+    ]]>
+  </send>
+  <recv response="200"/>
+  <!-- F23: Alice leaves the park (Carol has her now) -->
+  <recv request="BYE">
+    <action>
+      <exec rtp_stream="pause"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop next="end"/>
+
+  <!-- F16-F19: Carol asks which call is parked here -->
+  <label id="subscribe"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag10[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:park@[local_ip]:[local_port]>;automaton
+      Expires: 0
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      NOTIFY [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:park@lab.sip>;tag=[pid]SIPpTag10[call_number]
+      To: [$carol]
+      Call-ID: [call_id]
+      CSeq: 1 NOTIFY
+      Contact: <sip:park@[local_ip]:[local_port]>;automaton
+      Event: dialog
+      Subscription-State: terminated;reason=timeout
+      Content-Type: application/dialog-info+xml
+      Content-Length: [len]
+
+      <?xml version="1.0"?>
+      <dialog-info xmlns="urn:ietf:params:xml:ns:dialog-info" version="0" state="full" entity="sip:park@lab.sip">
+        <dialog id="parked-1" call-id="[$pcid]" local-tag="[$ptag]" remote-tag="[$atag]" direction="initiator">
+          <local><target uri="sip:park@lab.sip"/></local>
+          <remote><identity>sip:2001@lab.sip</identity><target uri="[$acontact]"/></remote>
+          <state>confirmed</state>
+        </dialog>
+      </dialog-info>
+    ]]>
+  </send>
+  <recv response="200"/>
+  <label id="end"/>
+</scenario>

@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.13, RFC 5359 2.15 (call park), Bob (-s): he answers Alice's call and 3 s later parks it: a REFER to the
+     park server (sip:park@lab.sip, through the proxy, credentials -au/-ap) with Refer-To: Alice's AOR?Replaces=<this
+     dialog: Call-ID, to-tag = Alice's tag, from-tag = Bob's tag>&Require=replaces, escaped as URI headers (RFC 3261
+     19.1.1), and Referred-By. 202, NOTIFY 100 Trying; then Alice's BYE (her dialog with Bob was replaced) and the
+     final NOTIFY 200 OK (the park worked). The REFER is a second dialog of this SIPp call: Call-ID "park///<Alice's
+     Call-ID>" (SIPp matches a Call-ID on what follows "///"). Alice's Call-ID must not contain "@" (it goes into the
+     Refer-To as it is). -->
+<scenario name="sip-lab call park, Bob">
+  <recv request="INVITE" crlf="true">
+    <action>
+      <ereg regexp=";tag=([^;&gt; ]+)" search_in="hdr" header="From:" assign_to="atag,atag"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <pause milliseconds="1500"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Supported: replaces
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK"/>
+  <pause milliseconds="3000"/>
+
+  <!-- F5: Bob parks the call -->
+  <send retrans="500">
+    <![CDATA[
+      REFER sip:park@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-refer1
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag07[call_number]
+      To: <sip:park@lab.sip>
+      Call-ID: park///[call_id]
+      CSeq: 1 REFER
+      Refer-To: <sip:2001@lab.sip?Replaces=[call_id]%3Bto-tag%3D[$atag]%3Bfrom-tag%3D[pid]SIPpTag02[call_number]&Require=replaces>
+      Referred-By: <sip:[service]@lab.sip>
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="407" auth="true"/>
+  <send retrans="500">
+    <![CDATA[
+      REFER sip:park@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-refer2
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag07[call_number]
+      To: <sip:park@lab.sip>
+      Call-ID: park///[call_id]
+      CSeq: 2 REFER
+      [authentication]
+      Refer-To: <sip:2001@lab.sip?Replaces=[call_id]%3Bto-tag%3D[$atag]%3Bfrom-tag%3D[pid]SIPpTag02[call_number]&Require=replaces>
+      Referred-By: <sip:[service]@lab.sip>
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="202"/>
+  <recv request="NOTIFY"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <!-- F12: Alice ends her dialog with Bob -->
+  <recv request="BYE"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <!-- F14: the park worked -->
+  <recv request="NOTIFY"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+</scenario>

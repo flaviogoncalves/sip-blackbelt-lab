@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.12, RFC 5359 2.11 (3-way conference, third party joins) and RFC 3911: Bob (this SIPp, user -s, a phone
+     that can mix audio) answers Alice's call. Carol then sends Bob an INVITE with Join: <Alice-Bob Call-ID>;
+     to-tag=<Bob's tag>;from-tag=<Alice's tag> and Require: join (she learned the dialog by other means: the take reads
+     it from this scenario's log). Bob rings Carol (180), re-INVITEs Alice with his mixer Contact and isfocus (RFC
+     4579), and once Alice has answered it he answers Carol with the same Contact. Each of them hangs up when they like.
+     Each INVITE starts its own SIPp call (run with -m 2); the second one (Carol's) takes the Join branch. The two calls
+     tell each other where they are through two global variables (joined, reinvited), checked every 100 ms.
+     The lab's SIPp does not mix audio: the trace is the signalling. -->
+<scenario name="sip-lab 3-way conference, third party joins">
+  <Global variables="joined,reinvited"/>
+  <recv request="INVITE" crlf="true">
+    <action>
+      <ereg regexp="&lt;.*" search_in="hdr" header="From:" assign_to="from"/>
+      <ereg regexp=";tag=([^;&gt; ]+)" search_in="hdr" header="From:" assign_to="ftag,ftag"/>
+      <ereg regexp="sip:[^&gt;;]+" search_in="hdr" header="Contact:" assign_to="contact"/>
+      <ereg regexp="&lt;[^&gt;]+&gt;" search_in="hdr" header="Record-Route:" assign_to="rr"/>
+      <!-- the second INVITE is Carol's, with Join: the branch is on the call number -->
+      <assignstr assign_to="cn" value="[call_number]"/>
+      <todouble assign_to="cnd" variable="cn"/>
+      <test assign_to="isjoin" variable="cnd" compare="equal" value="2"/>
+    </action>
+  </recv>
+  <nop test="isjoin" next="join"/>
+
+  <!-- Alice's call (no Join) -->
+  <send>
+    <![CDATA[
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <assign assign_to="joined" value="0"/>
+      <assign assign_to="reinvited" value="0"/>
+      <log message="JOIN-TARGET [call_id];to-tag=[pid]SIPpTag02[call_number];from-tag=[$ftag]"/>
+    </action>
+  </nop>
+  <pause milliseconds="1500"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Allow: INVITE, ACK, CANCEL, OPTIONS, BYE, REFER, NOTIFY
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK"/>
+  <!-- wait until Carol's INVITE with Join has arrived -->
+  <label id="wait_join"/>
+  <pause milliseconds="100"/>
+  <nop>
+    <action>
+      <test assign_to="go" variable="joined" compare="equal" value="1"/>
+    </action>
+  </nop>
+  <nop test="go" next="reinvite"/>
+  <nop next="wait_join"/>
+  <!-- F7: Bob re-INVITEs Alice with his mixer Contact and isfocus -->
+  <label id="reinvite"/>
+  <send retrans="500">
+    <![CDATA[
+      INVITE [$contact] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Route: [$rr]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag02[call_number]
+      To: [$from]
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]-mixer@[local_ip]:[local_port]>;isfocus
+      Allow: INVITE, ACK, CANCEL, OPTIONS, BYE, REFER, NOTIFY
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2002 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="200"/>
+  <send>
+    <![CDATA[
+      ACK [$contact] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Route: [$rr]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag02[call_number]
+      To: [$from]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <assign assign_to="reinvited" value="1"/>
+    </action>
+  </nop>
+  <nop next="bye"/>
+
+  <!-- Carol's call: INVITE with Join -->
+  <label id="join"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag03[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]-mixer@[local_ip]:[local_port]>;isfocus
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <assign assign_to="joined" value="1"/>
+    </action>
+  </nop>
+  <!-- wait until Alice has accepted the re-INVITE -->
+  <label id="wait_reinvite"/>
+  <pause milliseconds="100"/>
+  <nop>
+    <action>
+      <test assign_to="done" variable="reinvited" compare="equal" value="1"/>
+    </action>
+  </nop>
+  <nop test="done" next="answer"/>
+  <nop next="wait_reinvite"/>
+  <!-- F10: Bob accepts Carol's INVITE: she joins -->
+  <label id="answer"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag03[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]-mixer@[local_ip]:[local_port]>;isfocus
+      Allow: INVITE, ACK, CANCEL, OPTIONS, BYE, REFER, NOTIFY
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 3001 3001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK"/>
+
+  <label id="bye"/>
+  <recv request="BYE"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+</scenario>

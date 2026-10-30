@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.15, RFC 5359 2.17 (automatic redial), Alice (-s, credentials -au/-ap): she calls Bob (-set callee), who
+     is busy (486); she subscribes to Bob's dialog state (Event: dialog, Expires: 60) at the proxy's presence server;
+     when a NOTIFY no longer shows a call of Bob's in state confirmed she calls him again; Bob answers; 3 s later she ends the
+     subscription (Expires: 0) and 3 s after that hangs up. The subscription and the second call are more dialogs of
+     this SIPp call: Call-IDs "sub///<first Call-ID>" and "redial///<first Call-ID>" (SIPp matches a Call-ID on what
+     follows "///"). Run it with -aa: NOTIFYs that arrive while the scenario is busy elsewhere get an automatic 200. -->
+<scenario name="sip-lab automatic redial, Alice">
+  <Global variables="callee"/>
+  <!-- F1-F3: Bob is busy -->
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv1
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Allow: INVITE, ACK, CANCEL, OPTIONS, BYE, REFER, SUBSCRIBE, NOTIFY
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv1
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv2
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      Allow: INVITE, ACK, CANCEL, OPTIONS, BYE, REFER, SUBSCRIBE, NOTIFY
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1002 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="486"/>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv2
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <!-- F4-F7: watch Bob's dialog state -->
+  <send retrans="500">
+    <![CDATA[
+      SUBSCRIBE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag13[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: sub///[call_id]
+      CSeq: 1 SUBSCRIBE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Event: dialog
+      Accept: application/dialog-info+xml
+      Expires: 60
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="407" auth="true"/>
+  <send retrans="500">
+    <![CDATA[
+      SUBSCRIBE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag13[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: sub///[call_id]
+      CSeq: 2 SUBSCRIBE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      Event: dialog
+      Accept: application/dialog-info+xml
+      Expires: 60
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200">
+    <action>
+      <ereg regexp="&lt;.*" search_in="hdr" header="To:" assign_to="sto"/>
+      <ereg regexp="sip:[^&gt;;]+" search_in="hdr" header="Contact:" assign_to="scontact"/>
+    </action>
+  </recv>
+  <!-- F6, F8: NOTIFYs until Bob has no confirmed call -->
+  <label id="watch"/>
+  <recv request="NOTIFY">
+    <action>
+      <!-- the first of these in the body: a confirmed call, or the end of the document (a fresh test per NOTIFY) -->
+      <ereg regexp="(&lt;state&gt;confirmed|&lt;/dialog-info&gt;|/&gt;[[:space:]]*$)" search_in="msg" assign_to="st,st"/>
+      <strcmp assign_to="cmp" variable="st" value="&lt;state&gt;confirmed"/>
+      <test assign_to="busy" variable="cmp" compare="equal" value="0"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop test="busy" next="watch"/>
+
+  <!-- F10-F13: Bob is free: call him again -->
+  <label id="redial"/>
+  <pause milliseconds="500"/>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv3
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag14[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: redial///[call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Allow: INVITE, ACK, CANCEL, OPTIONS, BYE, REFER, SUBSCRIBE, NOTIFY
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1003 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv3
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag14[call_number]
+      [last_To:]
+      Call-ID: redial///[call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv4
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag14[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: redial///[call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      Allow: INVITE, ACK, CANCEL, OPTIONS, BYE, REFER, SUBSCRIBE, NOTIFY
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1004 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="200" rrs="true">
+    <action>
+      <ereg regexp="&lt;.*" search_in="hdr" header="To:" assign_to="rto"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag14[call_number]
+      [last_To:]
+      Call-ID: redial///[call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <pause milliseconds="3000"/>
+
+  <!-- F16-F19: end the subscription -->
+  <send retrans="500">
+    <![CDATA[
+      SUBSCRIBE [$scontact] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag13[call_number]
+      To: [$sto]
+      Call-ID: sub///[call_id]
+      CSeq: 3 SUBSCRIBE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Event: dialog
+      Accept: application/dialog-info+xml
+      Expires: 0
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+  <pause milliseconds="3000"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag14[call_number]
+      To: [$rto]
+      Call-ID: redial///[call_id]
+      CSeq: 3 BYE
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+  <pause milliseconds="1000"/>
+</scenario>

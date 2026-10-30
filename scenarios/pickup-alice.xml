@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.13, RFC 5359 2.16 (call pickup), Alice: she calls Bob (-set callee) through the proxy (407 answered) and
+     Bob's phone rings. Bill picks the call up: his INVITE with Replaces reaches Alice as a new call, played by the
+     out-of-call scenario pickup-alice-ooc.xml (run this one with -oocsf), which answers it and sets the global
+     variable picked. Alice then CANCELs her INVITE to Bob (same branch as that INVITE), gets 200 for the CANCEL, 487
+     for the INVITE and ACKs it. The call ends when the out-of-call scenario sets done (Alice's BYE to Bill). -->
+<scenario name="sip-lab call pickup, Alice">
+  <Global variables="callee,picked,done"/>
+  <nop>
+    <action>
+      <assign assign_to="picked" value="0"/>
+      <assign assign_to="done" value="0"/>
+    </action>
+  </nop>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv1
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Supported: replaces
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv1
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv2
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      Supported: replaces
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1002 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180"/>
+  <!-- Bob's phone rings until Bill picks the call up -->
+  <label id="ringing"/>
+  <pause milliseconds="100"/>
+  <nop>
+    <action>
+      <test assign_to="go" variable="picked" compare="equal" value="1"/>
+    </action>
+  </nop>
+  <nop test="go" next="cancel"/>
+  <nop next="ringing"/>
+  <!-- F9: stop Bob's phone -->
+  <label id="cancel"/>
+  <send retrans="500">
+    <![CDATA[
+      CANCEL sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv2
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 CANCEL
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+  <recv response="487"/>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv2
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <!-- keep this call (and SIPp) alive until the call with Bill has ended -->
+  <label id="talking"/>
+  <pause milliseconds="100"/>
+  <nop>
+    <action>
+      <test assign_to="over" variable="done" compare="equal" value="1"/>
+    </action>
+  </nop>
+  <nop test="over" next="end"/>
+  <nop next="talking"/>
+  <label id="end"/>
+</scenario>

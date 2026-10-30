@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.11: a phone whose user is not available answers the INVITE at once with 480 Temporarily Unavailable
+     (RFC 5359 2.12 draws it as "480 Not Logged In"), and gets the ACK. -->
+<scenario name="sip-lab callee 480">
+  <recv request="INVITE" crlf="true"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 480 Temporarily Unavailable
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv request="ACK"/>
+</scenario>

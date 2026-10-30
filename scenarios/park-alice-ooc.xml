@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.13, RFC 5359 2.15 (call park), Alice's incoming INVITEs with Replaces (run with -oocsf next to
+     park-alice.xml). The first comes from the park server (it replaces her call with Bob): she answers it, and on the
+     ACK sets replaced1, so her main call sends BYE to Bob; she then hears the park server until Carol's INVITE has
+     replaced that dialog too (replaced2), and sends BYE to the park server. The second comes from Carol (it replaces
+     the parked dialog): she answers it and waits for Carol's BYE, then sets done. -->
+<scenario name="sip-lab call park, Alice answers the Replaces INVITEs">
+  <Global variables="oocn,replaced1,replaced2,done"/>
+  <recv request="INVITE" crlf="true" rrs="true">
+    <action>
+      <ereg regexp="&lt;.*" search_in="hdr" header="From:" assign_to="peer"/>
+      <add assign_to="oocn" value="1"/>
+      <test assign_to="first" variable="oocn" compare="equal" value="1"/>
+    </action>
+  </recv>
+  <nop test="first" next="park"/>
+
+  <!-- Carol's INVITE: Carol retrieves the parked call -->
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag05[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Supported: replaces
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1004 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK">
+    <action>
+      <assign assign_to="replaced2" value="1"/>
+    </action>
+  </recv>
+  <recv request="BYE"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <assign assign_to="done" value="1"/>
+    </action>
+  </nop>
+  <nop next="end"/>
+
+  <!-- the park server's INVITE: the call is parked -->
+  <label id="park"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag06[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Supported: replaces
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1003 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK">
+    <action>
+      <assign assign_to="replaced1" value="1"/>
+    </action>
+  </recv>
+  <label id="held"/>
+  <pause milliseconds="100"/>
+  <nop>
+    <action>
+      <test assign_to="go" variable="replaced2" compare="equal" value="1"/>
+    </action>
+  </nop>
+  <nop test="go" next="bye"/>
+  <nop next="held"/>
+  <!-- F23: the parked dialog ends -->
+  <label id="bye"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag06[call_number]
+      To: [$peer]
+      Call-ID: [call_id]
+      CSeq: 1 BYE
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+  <label id="end"/>
+</scenario>

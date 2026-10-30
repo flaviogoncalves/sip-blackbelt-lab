@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lessons 5.14 and 5.17: a watcher (a phone's busy-lamp key, a voicemail light) subscribes to an event of another
+     user through the proxy, which is also the lab's presence server (RFC 6665). SUBSCRIBE -> 407 -> SUBSCRIBE +
+     credentials -> 200; then every NOTIFY gets a 200. When 15 s pass with no NOTIFY: with -set refresh 1 it
+     refreshes the subscription (in-dialog SUBSCRIBE, same Expires); with refresh 0 it does nothing (the subscription
+     runs out). After -set stopafter quiet periods it unsubscribes (Expires: 0). It ends on a NOTIFY whose
+     Subscription-State is terminated. -s = the watcher's user, -set target = the watched user, -set event / accept /
+     expires, credentials = -au/-ap. -->
+<scenario name="sip-lab watcher">
+  <Global variables="target,event,accept,expires,refresh,stopafter"/>
+  <nop>
+    <action>
+      <todouble assign_to="dorefresh" variable="refresh"/>
+      <todouble assign_to="quiet" variable="stopafter"/>
+      <multiply assign_to="quiet" value="-1"/>
+      <assign assign_to="cseq" value="2"/>
+    </action>
+  </nop>
+  <send retrans="500">
+    <![CDATA[
+      SUBSCRIBE sip:[$target]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$target]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 SUBSCRIBE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Event: [$event]
+      Accept: [$accept]
+      Expires: [$expires]
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="407" auth="true"/>
+  <send retrans="500">
+    <![CDATA[
+      SUBSCRIBE sip:[$target]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$target]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 SUBSCRIBE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      Event: [$event]
+      Accept: [$accept]
+      Expires: [$expires]
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200" rrs="true">
+    <action>
+      <ereg regexp=";tag=([^;> ]+)" search_in="hdr" header="To:" assign_to="totag,totag"/>
+    </action>
+  </recv>
+
+  <label id="wait"/>
+  <recv request="NOTIFY" timeout="15000" ontimeout="quiet">
+    <action>
+      <ereg regexp="terminated;" search_in="hdr" header="Subscription-State:" check_it="false" assign_to="term"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop test="term" next="end"/>
+  <nop next="wait"/>
+
+  <!-- a quiet period: unsubscribe after stopafter of them, else refresh (refresh 1) or keep waiting (refresh 0) -->
+  <label id="quiet"/>
+  <nop>
+    <action>
+      <add assign_to="quiet" value="1"/>
+      <test assign_to="stop" variable="quiet" compare="greater_than_equal" value="0"/>
+    </action>
+  </nop>
+  <nop test="stop" next="unsubscribe"/>
+  <nop test="dorefresh" next="refresh"/>
+  <nop next="wait"/>
+
+  <label id="refresh"/>
+  <nop>
+    <action>
+      <add assign_to="cseq" value="1"/>
+      <assignstr assign_to="cseqstr" value="[$cseq]"/>
+      <ereg regexp="^[0-9]+" search_in="var" variable="cseqstr" assign_to="cs"/>
+    </action>
+  </nop>
+  <send retrans="500">
+    <![CDATA[
+      SUBSCRIBE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$target]@lab.sip>;tag=[$totag]
+      Call-ID: [call_id]
+      CSeq: [$cs] SUBSCRIBE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Event: [$event]
+      Accept: [$accept]
+      Expires: [$expires]
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+  <nop next="wait"/>
+
+  <label id="unsubscribe"/>
+  <nop>
+    <action>
+      <add assign_to="cseq" value="1"/>
+      <assignstr assign_to="cseqstr" value="[$cseq]"/>
+      <ereg regexp="^[0-9]+" search_in="var" variable="cseqstr" assign_to="cs"/>
+    </action>
+  </nop>
+  <send retrans="500">
+    <![CDATA[
+      SUBSCRIBE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$target]@lab.sip>;tag=[$totag]
+      Call-ID: [call_id]
+      CSeq: [$cs] SUBSCRIBE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Event: [$event]
+      Accept: [$accept]
+      Expires: 0
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+  <nop next="wait"/>
+
+  <label id="end"/>
+</scenario>

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.15, RFC 3725 Flow I (third-party call control, click to dial): the controller (this SIPp at 192.0.2.30, an
+     application server trusted by the proxy) sets up a call between A (-set a) and B (-set b) through the proxy:
+     (1) INVITE A with no SDP; (2) A answers 200 with its offer; (3) INVITE B with A's offer; (4) B answers 200 with its
+     answer; (5) ACK to B; (6) ACK to A carrying B's answer; then A and B send RTP to each other. A sees the call as
+     coming from B (From: B) and B as coming from A. When A hangs up, the controller answers the BYE and sends BYE to B.
+     The dialog with B is a second dialog of this SIPp call: Call-ID "b///<A's Call-ID>". -->
+<scenario name="sip-lab 3PCC Flow I">
+  <Global variables="a,b"/>
+  <!-- (1) -->
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$a]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[$b]@lab.sip>;tag=[pid]SIPpTag11[call_number]
+      To: <sip:[$a]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:3pcc@[local_ip]:[local_port]>
+      User-Agent: sip-lab 3pcc controller
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <!-- (2) A's offer -->
+  <recv response="200">
+    <action>
+      <ereg regexp="v=0.*" search_in="body" assign_to="offer"/>
+      <ereg regexp="&lt;.*" search_in="hdr" header="To:" assign_to="ato"/>
+      <ereg regexp="sip:[^&gt;;]+" search_in="hdr" header="Contact:" assign_to="acontact"/>
+      <ereg regexp="&lt;[^&gt;]+&gt;" search_in="hdr" header="Record-Route:" assign_to="arr"/>
+    </action>
+  </recv>
+  <!-- (3) -->
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$b]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[$a]@lab.sip>;tag=[pid]SIPpTag12[call_number]
+      To: <sip:[$b]@lab.sip>
+      Call-ID: b///[call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:3pcc@[local_ip]:[local_port]>
+      User-Agent: sip-lab 3pcc controller
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      [$offer]
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <!-- (4) B's answer -->
+  <recv response="200">
+    <action>
+      <ereg regexp="v=0.*" search_in="body" assign_to="answer"/>
+      <ereg regexp="&lt;.*" search_in="hdr" header="To:" assign_to="bto"/>
+      <ereg regexp="sip:[^&gt;;]+" search_in="hdr" header="Contact:" assign_to="bcontact"/>
+      <ereg regexp="&lt;[^&gt;]+&gt;" search_in="hdr" header="Record-Route:" assign_to="brr"/>
+    </action>
+  </recv>
+  <!-- (5) -->
+  <send>
+    <![CDATA[
+      ACK [$bcontact] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Route: [$brr]
+      Max-Forwards: 70
+      From: <sip:[$a]@lab.sip>;tag=[pid]SIPpTag12[call_number]
+      To: [$bto]
+      Call-ID: b///[call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <!-- (6) A gets B's answer in the ACK -->
+  <send>
+    <![CDATA[
+      ACK [$acontact] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Route: [$arr]
+      Max-Forwards: 70
+      From: <sip:[$b]@lab.sip>;tag=[pid]SIPpTag11[call_number]
+      To: [$ato]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      [$answer]
+    ]]>
+  </send>
+  <!-- (7) A and B talk; A hangs up -->
+  <recv request="BYE"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      BYE [$bcontact] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Route: [$brr]
+      Max-Forwards: 70
+      From: <sip:[$a]@lab.sip>;tag=[pid]SIPpTag12[call_number]
+      To: [$bto]
+      Call-ID: b///[call_id]
+      CSeq: 2 BYE
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+</scenario>

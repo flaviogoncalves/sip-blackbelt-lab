@@ -22,9 +22,14 @@ runcmd:
   - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y opensips opensips-cli opensips-auth-modules opensips-sqlite-module"]
   - [sh, -c, "for p in opensips-tls-module opensips-tls-openssl-module opensips-tlsmgm-module opensips-wss-module opensips-presence-modules; do DEBIAN_FRONTEND=noninteractive apt-get install -y $p || echo \"sip-lab: optional $p failed\" >> /var/log/sip-lab-init.log; done"]
   - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends rtpengine-daemon rtpengine-utils && systemctl disable --now rtpengine-daemon"]
+  # pjsua 2.17 (pjproject's console phone, not in Debian): section 5 call-control takes (attended transfer with Replaces,
+  # Referred-By, norefersub, music server). Built from the release tarball without video, sound card, SSL or the extra
+  # codecs (phones run with --null-audio); a 1 GB swapfile only for the build (1 GB droplets); about 6 min on 1 vCPU
+  - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential pkg-config wget"]
+  - [sh, -c, "fallocate -l 1G /swapfile.pjbuild && chmod 600 /swapfile.pjbuild && mkswap /swapfile.pjbuild && swapon /swapfile.pjbuild; cd /usr/local/src && wget -q -O pjproject-2.17.tar.gz https://github.com/pjsip/pjproject/archive/refs/tags/2.17.tar.gz && tar xzf pjproject-2.17.tar.gz && cd pjproject-2.17 && ./configure --disable-video --disable-libwebrtc --disable-sound --disable-ssl --disable-opencore-amr --disable-silk --disable-opus --disable-bcg729 --disable-libyuv --disable-v4l2 --disable-openh264 --disable-ffmpeg --disable-sdl --disable-speex-aec --disable-gsm-codec --disable-ilbc-codec --disable-g7221-codec --disable-upnp && make dep && make -j1 && install -m 755 pjsip-apps/bin/pjsua-* /usr/local/bin/pjsua || echo 'sip-lab: pjsua build failed' >> /var/log/sip-lab-init.log; swapoff /swapfile.pjbuild; rm -f /swapfile.pjbuild"]
   - [sh, -c, "systemctl disable --now opensips || true"]
   - [sh, -c, "systemctl disable --now coturn || true"]
   - [sh, -c, "ufw default deny incoming && ufw allow 22/tcp && ufw --force enable"]
   # the lab scripts (takes, SIPp scenarios, lab.cfg) from the course's public repo, into /home/lab/lab
   - [sh, -c, "git clone --depth 1 https://github.com/flaviogoncalves/sip-blackbelt-lab /home/lab/lab && chown -R lab:lab /home/lab/lab"]
-  - [sh, -c, "dpkg-query -W opensips opensips-cli rtpengine-daemon sip-tester baresip sngrep tshark >> /var/log/sip-lab-init.log; echo sip-lab-ready >> /var/log/sip-lab-init.log"]
+  - [sh, -c, "dpkg-query -W opensips opensips-cli rtpengine-daemon sip-tester baresip sngrep tshark >> /var/log/sip-lab-init.log; ls -l /usr/local/bin/pjsua >> /var/log/sip-lab-init.log; echo sip-lab-ready >> /var/log/sip-lab-init.log"]

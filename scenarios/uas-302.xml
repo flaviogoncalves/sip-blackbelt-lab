@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.9: a phone set to forward every call answers the INVITE at once with 302 Moved Temporarily and the new
+     target in Contact (-set contact), and gets the ACK; the caller places a new INVITE to that target itself. -->
+<scenario name="sip-lab callee 302">
+  <Global variables="contact"/>
+  <recv request="INVITE" crlf="true"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 302 Moved Temporarily
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <[$contact]>
+      User-Agent: sip-lab phone [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv request="ACK"/>
+</scenario>

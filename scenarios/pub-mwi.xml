@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.14: the voicemail server (192.0.2.30, trusted by the proxy) publishes a mailbox state to the presence
+     server (the proxy) with PUBLISH (RFC 3903), Event: message-summary, a body of RFC 3842: 2 new and 8 old messages
+     (0 and 2 urgent), "Messages-Waiting: yes". -set later milliseconds after, the user has listened to them: it updates the
+     same publication (SIP-If-Match = the SIP-ETag of the 200) with "Messages-Waiting: no". -set target = the mailbox
+     user. The presence server notifies every subscriber of that user (the phone's voicemail light). -->
+<scenario name="sip-lab voicemail PUBLISH">
+  <Global variables="target,later"/>
+  <send retrans="500">
+    <![CDATA[
+      PUBLISH sip:[$target]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:voicemail@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$target]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 PUBLISH
+      Event: message-summary
+      Expires: 3600
+      User-Agent: sip-lab voicemail
+      Content-Type: application/simple-message-summary
+      Content-Length: [len]
+
+      Messages-Waiting: yes
+      Message-Account: sip:[$target]@lab.sip
+      Voice-Message: 2/8 (0/2)
+    ]]>
+  </send>
+  <recv response="200">
+    <action>
+      <ereg regexp="[^ ]+$" search_in="hdr" header="SIP-ETag:" assign_to="etag"/>
+    </action>
+  </recv>
+  <nop><action><todouble assign_to="laterms" variable="later"/></action></nop>
+  <pause variable="laterms"/>
+  <send retrans="500">
+    <![CDATA[
+      PUBLISH sip:[$target]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:voicemail@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$target]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 PUBLISH
+      Event: message-summary
+      SIP-If-Match: [$etag]
+      Expires: 3600
+      User-Agent: sip-lab voicemail
+      Content-Type: application/simple-message-summary
+      Content-Length: [len]
+
+      Messages-Waiting: no
+      Message-Account: sip:[$target]@lab.sip
+      Voice-Message: 0/10 (0/2)
+    ]]>
+  </send>
+  <recv response="200"/>
+</scenario>

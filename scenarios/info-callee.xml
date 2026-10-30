@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.16, RFC 6086 (INFO and Info Packages), the callee: it answers 200 OK with Recv-Info: foo (RFC 6086 12.1.1:
+     both ends say which packages they take), then sends the caller an INFO of Info Package foo (Info-Package: foo,
+     Content-Disposition: Info-Package, the body of RFC 6086 12.2.1), which is accepted, and an INFO of package bar,
+     which the caller never offered to take (469 Bad Info Package), and hangs up. -->
+<scenario name="sip-lab Info Packages, callee">
+  <recv request="INVITE" crlf="true" rrs="true">
+    <action>
+      <ereg regexp="&lt;.*" search_in="hdr" header="From:" assign_to="caller"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <pause milliseconds="1000"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Recv-Info: foo
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 2001 2001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK"/>
+  <pause milliseconds="1000"/>
+  <send retrans="500">
+    <![CDATA[
+      INFO [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag02[call_number]
+      To: [$caller]
+      Call-ID: [call_id]
+      CSeq: 1 INFO
+      Info-Package: foo
+      Content-Type: application/foo
+      Content-Disposition: Info-Package
+      Content-Length: [len]
+
+      I am a foo message type
+    ]]>
+  </send>
+  <recv response="200"/>
+  <pause milliseconds="1000"/>
+  <send retrans="500">
+    <![CDATA[
+      INFO [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag02[call_number]
+      To: [$caller]
+      Call-ID: [call_id]
+      CSeq: 2 INFO
+      Info-Package: bar
+      Content-Type: application/bar
+      Content-Disposition: Info-Package
+      Content-Length: [len]
+
+      I am a bar message type
+    ]]>
+  </send>
+  <recv response="469"/>
+  <pause milliseconds="1000"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag02[call_number]
+      To: [$caller]
+      Call-ID: [call_id]
+      CSeq: 3 BYE
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+</scenario>

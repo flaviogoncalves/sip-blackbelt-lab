@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 5.13, RFC 5359 2.15 (call park), Alice: she calls Bob (-set callee) through the proxy (407 answered). Her
+     two later calls come in as INVITEs with Replaces (from the park server, then from Carol): they are played by the
+     out-of-call scenario park-alice-ooc.xml (run with -oocsf, and with -callid_slash_ign: the other actors build
+     Call-IDs with "///"). When the park server's INVITE has been accepted (global replaced1), Alice sends BYE to Bob;
+     the call ends when Carol has hung up (global done). -->
+<scenario name="sip-lab call park, Alice">
+  <Global variables="callee,oocn,replaced1,replaced2,done"/>
+  <nop>
+    <action>
+      <assign assign_to="oocn" value="0"/>
+      <assign assign_to="replaced1" value="0"/>
+      <assign assign_to="replaced2" value="0"/>
+      <assign assign_to="done" value="0"/>
+    </action>
+  </nop>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv1
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Supported: replaces
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv1
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-[pid]-inv2
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      Supported: replaces
+      User-Agent: sip-lab phone [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=[service] 1001 1002 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="200" rrs="true"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <!-- talking to Bob until the park server's INVITE with Replaces has replaced this dialog -->
+  <label id="talking"/>
+  <pause milliseconds="100"/>
+  <nop>
+    <action>
+      <test assign_to="go" variable="replaced1" compare="equal" value="1"/>
+    </action>
+  </nop>
+  <nop test="go" next="bye"/>
+  <nop next="talking"/>
+  <!-- F12: the replaced dialog ends -->
+  <label id="bye"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 3 BYE
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+  <!-- keep SIPp alive until Carol has hung up -->
+  <label id="parked"/>
+  <pause milliseconds="100"/>
+  <nop>
+    <action>
+      <test assign_to="over" variable="done" compare="equal" value="1"/>
+    </action>
+  </nop>
+  <nop test="over" next="end"/>
+  <nop next="parked"/>
+  <label id="end"/>
+</scenario>
