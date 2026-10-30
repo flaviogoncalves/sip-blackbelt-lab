@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 6.6, the checks before a trunk goes live: session timers (RFC 4028). The caller offers Session-Expires: 60;
+     the far end answers 422 with its Min-SE; the caller retries with that value, gets 200 with Session-Expires and
+     refresher=uac, refreshes the session with a re-INVITE at half the interval, then hangs up.
+     Sent from the customer's SBC address (192.0.2.10, another port) straight to the carrier, which trusts that address
+     (IP trunk) and expects a P-Asserted-Identity of the customer's range. Number called = -set callee. -->
+<scenario name="sip-lab interop: timer">
+  <Global variables="callee"/>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@carrier.example SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:+442079460101@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@carrier.example>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:acme@[local_ip]:[local_port]>
+      P-Asserted-Identity: <sip:+442079460101@lab.sip;user=phone>
+      Supported: timer
+      Session-Expires: 60
+      User-Agent: sip-lab interop test
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=acme 1001 1 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0 8 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=ptime:20
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="422">
+    <action>
+      <ereg regexp="[0-9]+" search_in="hdr" header="Min-SE:" assign_to="minse"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@carrier.example SIP/2.0
+      [last_Via:]
+      Max-Forwards: 70
+      From: <sip:+442079460101@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@carrier.example SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:+442079460101@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@carrier.example>
+      Call-ID: [call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:acme@[local_ip]:[local_port]>
+      P-Asserted-Identity: <sip:+442079460101@lab.sip;user=phone>
+      Supported: timer
+      Session-Expires: [$minse]
+      Min-SE: [$minse]
+      User-Agent: sip-lab interop test
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=acme 1001 2 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0 8 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=ptime:20
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="200" rrs="true"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:+442079460101@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <!-- the refresher refreshes at half the session interval (RFC 4028 section 10) -->
+  <pause milliseconds="45000"/>
+  <send retrans="500">
+    <![CDATA[
+      INVITE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:+442079460101@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 3 INVITE
+      Contact: <sip:acme@[local_ip]:[local_port]>
+      Supported: timer
+      Session-Expires: [$minse];refresher=uac
+      Min-SE: [$minse]
+      User-Agent: sip-lab interop test
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=acme 1001 3 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0 8 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=ptime:20
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="200"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:+442079460101@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 3 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <pause milliseconds="2000"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:+442079460101@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 4 BYE
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+</scenario>

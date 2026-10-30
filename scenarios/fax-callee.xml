@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lessons 6.11-6.13: the receiving (called) fax gateway. No fax machine is behind it: it answers in G.711 (PCMU),
+     plays the answering fax's CED tone (fax-ced.pcap: 2100 Hz for 3 s, then 1 s of silence, made by
+     make_qosfax_media.py) and, 3.5 s after the answer, acts as if it had detected the answering fax's V.21 preamble:
+     ITU-T T.38 D.2.2.4.2 has the receiving gateway send the re-INVITE for T.38 (same Call-ID). -set mode decides:
+       passthru  no re-INVITE: the call stays in G.711 (fax pass-through) and this side hangs up 4 s later;
+       t38       re-INVITE with m=image ... udptl t38 in place of the m=audio (RFC 3264 8.3.3); on 200 it ACKs and
+                 sends the T.38 packets of fax-t38.pcap (play_pcap_image: three V.21 preamble indicators), then BYE;
+                 on 488 it ACKs and behaves as giveup;
+       stay      the same re-INVITE; on 488 it ACKs, keeps the call in G.711 for 4 s (the session is unchanged: it
+                 sends 4 s of PCMU silence, fax-silence.pcap) and hangs up;
+       giveup    the same re-INVITE; on 488 it ACKs and hangs up at once (the gateway gives up on the fax).
+     The INVITE's From and To are kept for the requests this side sends (its From = the INVITE's To + its tag). -->
+<scenario name="sip-lab receiving fax gateway">
+  <Global variables="mode"/>
+  <recv request="INVITE" crlf="true" rrs="true">
+    <action>
+      <ereg regexp="[^ ].*" search_in="hdr" header="From:" assign_to="ifrom"/>
+      <ereg regexp="[^ ].*" search_in="hdr" header="To:" assign_to="ito"/>
+      <strcmp assign_to="c1" variable="mode" value="passthru"/>
+      <test assign_to="passthru" variable="c1" compare="equal" value="0"/>
+      <strcmp assign_to="c2" variable="mode" value="stay"/>
+      <test assign_to="stay" variable="c2" compare="equal" value="0"/>
+    </action>
+  </recv>
+  <send>
+    <![CDATA[
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <pause milliseconds="1000"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab fax gateway [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=gw[service] 2001 2001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK" crlf="true">
+    <action>
+      <exec play_pcap_audio="scenarios/fax-ced.pcap"/>
+    </action>
+  </recv>
+  <pause milliseconds="3500"/>
+  <nop test="passthru" next="passthru"/>
+
+  <!-- the switch to T.38 -->
+  <send retrans="500">
+    <![CDATA[
+      INVITE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: [$ito];tag=[pid]SIPpTag02[call_number]
+      To: [$ifrom]
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab fax gateway [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=gw[service] 2001 2002 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=image [media_port] udptl t38
+      a=T38FaxVersion:0
+      a=T38MaxBitRate:14400
+      a=T38FaxRateManagement:transferredTCF
+      a=T38FaxMaxBuffer:200
+      a=T38FaxMaxDatagram:72
+      a=T38FaxUdpEC:t38UDPRedundancy
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="200" optional="true" next="t38ok"/>
+  <recv response="488"/>
+  <!-- the ACK to a non-2xx final response: same branch and Route set as the re-INVITE (RFC 3261 17.1.1.3) -->
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      [last_Via:]
+      [routes]
+      Max-Forwards: 70
+      From: [$ito];tag=[pid]SIPpTag02[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop test="stay" next="stay"/>
+  <nop next="bye"/>
+
+  <!-- stay: the session is unchanged, so the voice channel goes on in G.711 (this side sends 4 s of silence) -->
+  <label id="stay"/>
+  <nop>
+    <action>
+      <exec play_pcap_audio="scenarios/fax-silence.pcap"/>
+    </action>
+  </nop>
+  <pause milliseconds="4000"/>
+  <nop next="bye"/>
+
+  <label id="t38ok"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: [$ito];tag=[pid]SIPpTag02[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+    <action>
+      <exec play_pcap_image="scenarios/fax-t38.pcap"/>
+    </action>
+  </send>
+  <pause milliseconds="3000"/>
+  <nop next="bye"/>
+
+  <label id="passthru"/>
+  <pause milliseconds="4000"/>
+
+  <label id="bye"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: [$ito];tag=[pid]SIPpTag02[call_number]
+      To: [$ifrom]
+      Call-ID: [call_id]
+      CSeq: 2 BYE
+      User-Agent: sip-lab fax gateway [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+</scenario>

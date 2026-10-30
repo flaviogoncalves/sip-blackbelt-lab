@@ -20,7 +20,7 @@ runcmd:
   # the repo list is written only after its key exists (2026-10-27: a list written first broke the first apt update)
   - [sh, -c, "curl -fsSL https://apt.opensips.org/opensips-org.gpg -o /usr/share/keyrings/opensips-org.gpg && echo 'deb [signed-by=/usr/share/keyrings/opensips-org.gpg] https://apt.opensips.org trixie 4.0-releases' > /etc/apt/sources.list.d/opensips.list && apt-get update"]
   - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y opensips opensips-cli opensips-auth-modules opensips-sqlite-module"]
-  - [sh, -c, "for p in opensips-tls-module opensips-tls-openssl-module opensips-tlsmgm-module opensips-wss-module opensips-presence-modules; do DEBIAN_FRONTEND=noninteractive apt-get install -y $p || echo \"sip-lab: optional $p failed\" >> /var/log/sip-lab-init.log; done"]
+  - [sh, -c, "for p in opensips-tls-module opensips-tls-openssl-module opensips-tlsmgm-module opensips-wss-module opensips-presence-modules opensips-stir-shaken-module; do DEBIAN_FRONTEND=noninteractive apt-get install -y $p || echo \"sip-lab: optional $p failed\" >> /var/log/sip-lab-init.log; done"]
   - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends rtpengine-daemon rtpengine-utils && systemctl disable --now rtpengine-daemon"]
   # pjsua 2.17 (pjproject's console phone, not in Debian): section 5 call-control takes (attended transfer with Replaces,
   # Referred-By, norefersub, music server). Built from the release tarball without video, sound card, SSL or the extra

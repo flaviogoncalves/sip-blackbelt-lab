@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 6.3: the customer's office PBX (trusted by the proxy by its address, no digest) dials a number written as
+     -set ruri: the Request-URI exactly as dialled (sip:..., tel:...), also used as the To URI. Then the answer: 200 (ACK,
+     1 s of call, BYE) or a refusal (ACK with the INVITE's branch). -->
+<scenario name="sip-lab PBX call">
+  <Global variables="ruri"/>
+  <send retrans="500">
+    <![CDATA[
+      INVITE [$ruri] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:+442079460100@[local_ip]>;tag=[pid]SIPpTag01[call_number]
+      To: <[$ruri]>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:+442079460100@[local_ip]:[local_port]>
+      User-Agent: sip-lab office PBX
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=pbx 1001 1001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0 8 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="183" optional="true"/>
+  <recv response="403" optional="true" next="refused"/>
+  <recv response="404" optional="true" next="refused"/>
+  <recv response="407" optional="true" next="refused"/>
+  <recv response="428" optional="true" next="refused"/>
+  <recv response="436" optional="true" next="refused"/>
+  <recv response="437" optional="true" next="refused"/>
+  <recv response="438" optional="true" next="refused"/>
+  <recv response="480" optional="true" next="refused"/>
+  <recv response="486" optional="true" next="refused"/>
+  <recv response="500" optional="true" next="refused"/>
+  <recv response="503" optional="true" next="refused"/>
+  <recv response="200" rrs="true"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:+442079460100@[local_ip]>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <pause milliseconds="1000"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:+442079460100@[local_ip]>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 BYE
+      User-Agent: sip-lab office PBX
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200" next="end"/>
+
+  <label id="refused"/>
+  <send>
+    <![CDATA[
+      ACK [$ruri] SIP/2.0
+      [last_Via:]
+      Max-Forwards: 70
+      From: <sip:+442079460100@[local_ip]>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <label id="end"/>
+</scenario>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 6.6, the checks before a trunk goes live: DTMF as RFC 4733 events. The offer has telephone-event; once the
+     call is up the caller plays the digit 1 as RTP events (SIPp's dtmf_2833_1.pcap) toward the far end.
+     Sent from the customer's SBC address (192.0.2.10, another port) straight to the carrier, which trusts that address
+     (IP trunk) and expects a P-Asserted-Identity of the customer's range. Number called = -set callee. -->
+<scenario name="sip-lab interop: dtmf">
+  <Global variables="callee"/>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[$callee]@carrier.example SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:+442079460101@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@carrier.example>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:acme@[local_ip]:[local_port]>
+      P-Asserted-Identity: <sip:+442079460101@lab.sip;user=phone>
+      User-Agent: sip-lab interop test
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=acme 1001 1 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0 8 101
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=ptime:20
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="200" rrs="true"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:+442079460101@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <exec play_pcap_audio="/usr/share/sip-tester/dtmf_2833_1.pcap"/>
+    </action>
+  </nop>
+  <pause milliseconds="2000"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:+442079460101@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 3 BYE
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+</scenario>

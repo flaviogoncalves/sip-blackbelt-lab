@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lessons 6.11-6.13: the emitting (calling) fax gateway. No fax machine is behind it: it calls in G.711 (PCMU only,
+     no VAD) through the proxy with proxy authentication, plays the calling fax's CNG tone (fax-cng.pcap, made by
+     make_qosfax_media.py) and waits. If the far end re-INVITEs (the switch to T.38), -set answer decides:
+       t38    200 OK with m=image ... udptl t38 in the same place as the m=audio it replaces (RFC 3264 8.3.3), then
+              plays nothing more (the receiving gateway sends the T.38 packets);
+       refuse 488 Not Acceptable Here with Warning 304 "Media type not available" (RFC 3261 21.4.26, 20.43): this
+              gateway takes no T.38, so the session stays as it was (G.711).
+     Either way it then waits for the BYE. Caller = -s, callee = -set callee, credentials = -au/-ap. The ACK to the
+     407 reuses the INVITE's branch (RFC 3261 17.1.1.3): [branch-3] = message index 0. -->
+<scenario name="sip-lab emitting fax gateway">
+  <Global variables="callee,answer"/>
+  <send>
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab fax gateway [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=gw[service] 1001 1001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch-3]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send>
+    <![CDATA[
+      INVITE sip:[$callee]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[$callee]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      User-Agent: sip-lab fax gateway [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=gw[service] 1001 1002 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="200" rrs="true"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+    <action>
+      <exec play_pcap_audio="scenarios/fax-cng.pcap"/>
+    </action>
+  </send>
+  <!-- a re-INVITE (the switch to T.38) or the BYE -->
+  <recv request="INVITE" optional="true" next="reinvite">
+    <action>
+      <strcmp assign_to="cmp" variable="answer" value="t38"/>
+      <test assign_to="accept" variable="cmp" compare="equal" value="0"/>
+    </action>
+  </recv>
+  <recv request="BYE" next="bye"/>
+
+  <label id="reinvite"/>
+  <nop test="accept" next="t38"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 488 Not Acceptable Here
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Warning: 304 [local_ip] "Media type not available"
+      User-Agent: sip-lab fax gateway [service]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv request="ACK"/>
+  <recv request="BYE" next="bye"/>
+
+  <label id="t38"/>
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab fax gateway [service]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=gw[service] 1001 1003 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=image [media_port] udptl t38
+      a=T38FaxVersion:0
+      a=T38MaxBitRate:14400
+      a=T38FaxRateManagement:transferredTCF
+      a=T38FaxMaxBuffer:200
+      a=T38FaxMaxDatagram:72
+      a=T38FaxUdpEC:t38UDPRedundancy
+    ]]>
+  </send>
+  <recv request="ACK"/>
+  <recv request="BYE"/>
+
+  <label id="bye"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+</scenario>

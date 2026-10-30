@@ -39,6 +39,7 @@ scenarios (`scenarios/`) or baresip phones, and leaves nothing running. The head
 | `take-media.sh`, `take-wireshark.sh` (+ `scenarios/load-*.xml`) | 3. SDP, media and Wireshark |
 | `take-errors.sh` (+ `sipsend.py`, `requests/`), `take-nat.sh` (+ `nat.sh`) | 4. Errors, extensions, overload and NAT |
 | `take-callctl.sh` (baresip + pjsua 2.17), `take-services.sh` (+ SIPp scenarios) | 5. Call control: hold, transfer and services |
+| `take-trunks.sh` (+ `opensips/carrier.cfg`, `opensips/verifier.cfg`), `take-qosfax.sh` | 6. Trunks, identity, interconnect, QoS and fax |
 
 Addresses: OpenSIPS (`lab.sip`) 192.0.2.10; phones 2001, 2002, 2003 at 192.0.2.21, .22, .23 (`net.sh`).
 Open the pcaps in Wireshark on your laptop, or read them on the box with sngrep and tshark.
