@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Section 8 (billing): the far end behind the carrier (the called people, 192.0.2.50), every call that comes; run it
+     with no -m, under a timeout, with -aa (in-dialog OPTIONS answered 200). The number called picks the answer:
+       +44 161 496 0999  an announcement: 183 Session Progress with SDP and audio (early media, RFC 3960), never
+                         answered; waits for the CANCEL (200 to it, 487 to the INVITE)
+       +44 161 496 0100  answers at once (180 and 200 together)
+       any other number  rings 1 s (180), then answers 200
+     An answered call resends its 200 OK until the ACK comes; if none comes within 32 s the far end ends the call with
+     its own BYE (RFC 3261 13.3.1.4: no ACK after 64*T1, the session SHOULD be terminated with a BYE). The resends are
+     written out by hand: SIPp 3.7.3 aborts a 2xx retransmission after nine resends and never reaches a recv timeout.
+     Then it waits for the caller's BYE. -->
+<scenario name="sip-lab billing far end">
+  <recv request="INVITE" crlf="true" rrs="true">
+    <action>
+      <ereg regexp="[0-9]+" search_in="hdr" header="To:" check_it="true" assign_to="user"/>
+      <ereg regexp="[^ ].*" search_in="hdr" header="From:" check_it="true" assign_to="from"/>
+      <ereg regexp="[^ ].*" search_in="hdr" header="To:" check_it="true" assign_to="to"/>
+      <ereg regexp="[0-9]+" search_in="hdr" header="CSeq:" check_it="true" assign_to="cseq"/>
+      <ereg regexp="[^ ].*" search_in="hdr" header="Via:" occurrence="1" assign_to="via1"/>
+      <ereg regexp="[^ ].*" search_in="hdr" header="Via:" occurrence="2" assign_to="via2"/>
+      <ereg regexp="[^ ].*" search_in="hdr" header="Via:" occurrence="3" assign_to="via3"/>
+      <strcmp assign_to="e" variable="user" value="441614960999"/>
+      <test assign_to="early" variable="e" compare="equal" value="0"/>
+      <strcmp assign_to="q" variable="user" value="441614960100"/>
+      <test assign_to="quick" variable="q" compare="equal" value="0"/>
+    </action>
+  </recv>
+  <nop next="early" test="early"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[$user]@[local_ip]:[local_port]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop next="answer" test="quick"/>
+  <pause milliseconds="1000"/>
+  <label id="answer"/>
+  <!-- the 2xx retransmissions written out (RFC 3261 13.3.1.4: T1, doubling to T2 = 4 s, until 64*T1 = 32 s): sent at
+       0, 0.5, 1.5, 3.5 s, then every 4 s up to 31.5 s; no ACK by 32 s = the far end sends its BYE -->
+  <nop><action><assign assign_to="n" value="0"/></action></nop>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[$user]@[local_ip]:[local_port]>
+      User-Agent: sip-lab far end
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=far [call_number] 1 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK" crlf="true" timeout="500" ontimeout="r1" next="acked"/>
+  <label id="r1"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[$user]@[local_ip]:[local_port]>
+      User-Agent: sip-lab far end
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=far [call_number] 1 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK" crlf="true" timeout="1000" ontimeout="r2" next="acked"/>
+  <label id="r2"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[$user]@[local_ip]:[local_port]>
+      User-Agent: sip-lab far end
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=far [call_number] 1 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK" crlf="true" timeout="2000" ontimeout="slow" next="acked"/>
+  <label id="slow"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[$user]@[local_ip]:[local_port]>
+      User-Agent: sip-lab far end
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=far [call_number] 1 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <add assign_to="n" value="1"/>
+      <test assign_to="done" variable="n" compare="greater_than_equal" value="7"/>
+    </action>
+  </nop>
+  <recv request="ACK" crlf="true" timeout="4000" ontimeout="slowcheck" next="acked"/>
+  <label id="slowcheck"/>
+  <nop next="last" test="done"/>
+  <nop next="slow"/>
+  <label id="last"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[$user]@[local_ip]:[local_port]>
+      User-Agent: sip-lab far end
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=far [call_number] 1 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv request="ACK" crlf="true" timeout="500" ontimeout="noack" next="acked"/>
+  <label id="acked"/>
+  <recv request="BYE"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop next="end"/>
+
+  <label id="noack"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: [$to];tag=[pid]SIPpTag02[call_number]
+      To: [$from]
+      Call-ID: [call_id]
+      CSeq: 1 BYE
+      User-Agent: sip-lab far end
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200" optional="true" next="end"/>
+  <recv response="481" optional="true" next="end"/>
+  <recv response="408" next="end"/>
+
+  <label id="early"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 183 Session Progress
+      [last_Via:]
+      [last_Record-Route:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[$user]@[local_ip]:[local_port]>
+      User-Agent: sip-lab far end
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=far [call_number] 1 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <exec play_pcap_audio="/usr/share/sip-tester/g711a.pcap"/>
+    </action>
+  </nop>
+  <!-- the 487 answers the INVITE, so it carries the INVITE's Via headers (kept above: the three of a call from a phone
+       through our proxy and the carrier), not the CANCEL's single hop -->
+  <recv request="CANCEL"/>
+  <send>
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send>
+    <![CDATA[
+      SIP/2.0 487 Request Terminated
+      Via: [$via1]
+      Via: [$via2]
+      Via: [$via3]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag02[call_number]
+      [last_Call-ID:]
+      CSeq: [$cseq] INVITE
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv request="ACK"/>
+  <label id="end"/>
+</scenario>

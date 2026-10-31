@@ -307,7 +307,7 @@ EOF
     diff opensips/lab.cfg $CFG > captures/$NAME.cfg.diff; diff $CFG $BRIDGE > captures/$NAME.bridge.cfg.diff
     for c in $CFG $BRIDGE; do /usr/sbin/opensips -C -f $c > /tmp/lab-check.txt 2>&1 || { cat /tmp/lab-check.txt; exit 1; }; done
     ;;
-  # lesson 7.13: "half the calls fail after we added a second server". The front (lab.cfg at 192.0.2.10) spreads EVERY
+  # lesson 7.13: "calls fail at hang-up after we added a second server". The front (lab.cfg at 192.0.2.10) spreads EVERY
   # request over two SBC nodes (dispatcher set 1, 192.0.2.31/.32, opensips/sbc-node.cfg): round robin per request
   # (algorithm 4) in the ticket, by a hash of the Call-ID (algorithm 0: every request of a call to the same node) in the
   # fix. Each node keeps its calls' dialog state (topology hiding) and advertises the front's address in Contact, so

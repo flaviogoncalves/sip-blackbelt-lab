@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!-- Lesson 8.10: a call-centre dialer. Each call takes one line of the injection file (-inf): field0 = the number,
+     field1 = how long an answered call lasts (ms). Like bill-uac.xml, but the dialer gives up on a call that is not
+     answered within 6 s of its last provisional reply: it CANCELs it (RFC 3261 9.1), even while the far end plays early media (183 with SDP and
+     audio, RFC 3960). The CANCEL and the ACK to the 487 carry the INVITE's Via ([last_Via:] of the last reply). -->
+<scenario name="sip-lab dialer">
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[field0]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[field0]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      User-Agent: sip-lab dialer
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=dialer 1001 1001 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 0 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="407" auth="true"/>
+  <send>
+    <![CDATA[
+      ACK sip:[field0]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch-3]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[field0]@lab.sip SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[field0]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 INVITE
+      Contact: <sip:[service]@[local_ip]:[local_port]>
+      [authentication]
+      User-Agent: sip-lab dialer
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=dialer 1001 1002 IN IP4 [local_ip]
+      s=sip-lab
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 8 0 101
+      a=rtpmap:8 PCMA/8000
+      a=rtpmap:0 PCMU/8000
+      a=rtpmap:101 telephone-event/8000
+      a=fmtp:101 0-15
+      a=sendrecv
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="180" optional="true"/>
+  <recv response="183" optional="true"/>
+  <!-- the 6 s are counted here, the first step after the provisional replies: SIPp waits at the first optional
+       recv after the last message it got, and a timeout on a later recv would never start -->
+  <recv response="403" optional="true" next="refused" timeout="6000" ontimeout="giveup"/>
+  <recv response="404" optional="true" next="refused"/>
+  <recv response="408" optional="true" next="refused"/>
+  <recv response="480" optional="true" next="refused"/>
+  <recv response="486" optional="true" next="refused"/>
+  <recv response="503" optional="true" next="refused"/>
+  <recv response="200" rrs="true"/>
+  <send>
+    <![CDATA[
+      ACK [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <nop>
+    <action>
+      <assignstr assign_to="holdstr" value="[field1]"/>
+      <todouble assign_to="hold" variable="holdstr"/>
+    </action>
+  </nop>
+  <pause variable="hold"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE [next_url] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 3 BYE
+      User-Agent: sip-lab dialer
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200" next="end"/>
+
+  <label id="giveup"/>
+  <send retrans="500">
+    <![CDATA[
+      CANCEL sip:[field0]@lab.sip SIP/2.0
+      [last_Via:]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      To: <sip:[field0]@lab.sip>
+      Call-ID: [call_id]
+      CSeq: 2 CANCEL
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"/>
+  <recv response="487"/>
+
+  <label id="refused"/>
+  <send>
+    <![CDATA[
+      ACK sip:[field0]@lab.sip SIP/2.0
+      [last_Via:]
+      Max-Forwards: 70
+      From: <sip:[service]@lab.sip>;tag=[pid]SIPpTag01[call_number]
+      [last_To:]
+      Call-ID: [call_id]
+      CSeq: 2 ACK
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <label id="end"/>
+</scenario>

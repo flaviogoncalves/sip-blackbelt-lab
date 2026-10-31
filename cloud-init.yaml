@@ -13,14 +13,15 @@ ssh_pwauth: false
 disable_root: true
 package_update: true
 # conntrack (the router's NAT table) and coturn (STUN/TURN server; disabled below, take-nat.sh starts it): section 4 NAT takes
-packages: [curl, gnupg, ca-certificates, ufw, sngrep, tcpdump, sip-tester, baresip, nano, git, bind9-dnsutils, dnsmasq-base, sqlite3, tcpreplay, iproute2, conntrack, coturn]
+# faketime (libfaketime: one process on a wrong clock, the carrier's clock offset in take-billing.sh): section 8 billing takes
+packages: [curl, gnupg, ca-certificates, ufw, sngrep, tcpdump, sip-tester, baresip, nano, git, bind9-dnsutils, dnsmasq-base, sqlite3, tcpreplay, iproute2, conntrack, coturn, faketime]
 runcmd:
   - [sh, -c, "echo 'wireshark-common wireshark-common/install-setuid boolean false' | debconf-set-selections"]
   - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y tshark"]
   # the repo list is written only after its key exists (2026-10-27: a list written first broke the first apt update)
   - [sh, -c, "curl -fsSL https://apt.opensips.org/opensips-org.gpg -o /usr/share/keyrings/opensips-org.gpg && echo 'deb [signed-by=/usr/share/keyrings/opensips-org.gpg] https://apt.opensips.org trixie 4.0-releases' > /etc/apt/sources.list.d/opensips.list && apt-get update"]
   - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y opensips opensips-cli opensips-auth-modules opensips-sqlite-module"]
-  - [sh, -c, "for p in opensips-tls-module opensips-tls-openssl-module opensips-tlsmgm-module opensips-wss-module opensips-presence-modules opensips-stir-shaken-module; do DEBIAN_FRONTEND=noninteractive apt-get install -y $p || echo \"sip-lab: optional $p failed\" >> /var/log/sip-lab-init.log; done"]
+  - [sh, -c, "for p in opensips-tls-module opensips-tls-openssl-module opensips-tlsmgm-module opensips-wss-module opensips-presence-modules opensips-stir-shaken-module opensips-http-modules opensips-xmlrpc-module; do DEBIAN_FRONTEND=noninteractive apt-get install -y $p || echo \"sip-lab: optional $p failed\" >> /var/log/sip-lab-init.log; done"]
   - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends rtpengine-daemon rtpengine-utils && systemctl disable --now rtpengine-daemon"]
   # pjsua 2.17 (pjproject's console phone, not in Debian): section 5 call-control takes (attended transfer with Replaces,
   # Referred-By, norefersub, music server). Built from the release tarball without video, sound card, SSL or the extra
