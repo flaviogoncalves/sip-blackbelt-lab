@@ -205,7 +205,7 @@ case $CASE in
         tlscall sip:2002@lab.sip
         term "$SHOWCERT"
         term "$S_DIAG -brief < /dev/null" ;;
-  ticketfix)  # the diagnosis, the new certificate, OpenSIPS reloads it without a restart, then the phones again
+  ticketfix)  # the diagnosis, the new certificate, OpenSIPS restarted to load it (see below), then the phones again
         term "$SHOWCERT"
         term "$S_DIAG -brief < /dev/null"
         cert_cmds lab.sip; for c in "${CERT_CMDS[@]}"; do term "$c"; done
