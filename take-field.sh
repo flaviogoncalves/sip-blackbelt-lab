@@ -103,7 +103,7 @@ AUTH=$'\tif ($fd == "lab.sip") {\n'
 RR=$'\trecord_route();\n\tif (!lookup("location")) {'
 INDLG=$'\t\tif (loose_route()) {\n'
 dialog() {  # dialog <create_dialog flags> [more modparam lines]: the dialog module tracks every call
-  mods $'# section 8: the dialog module keeps every call it has seen until a BYE ends it (default_timeout 21600 s = 6 h)\nloadmodule "dialog.so"\n'"${2:-}"
+  mods $'# section 8: the dialog module keeps every call it has seen until a BYE ends it (default_timeout 43200 s = 12 h, the module default)\nloadmodule "dialog.so"\n'"${2:-}"
   local call='create_dialog();'; [ -n "$1" ] && call="create_dialog(\"$1\");"
   edit "$RR" $'\tif (is_method("INVITE"))\n\t\t'"$call"$'\n'"$RR"
 }
@@ -426,7 +426,7 @@ case $CASE in
     uas uas-av.xml $((W + 2)) 2002; sleep 1
     site_sipp $SC $W 2001 u1
     if [ $CASE = fragdrop ] || [ $CASE = ticket ]; then
-      sleep 4   # the proxy's kernel gives up the last half-received INVITE 30 s after its first fragment
+      sleep 4   # the proxy's kernel gives up the last half-received INVITE about 31 s after its first fragment
     fi
     if [ $CASE = ticket ]; then   # the same phone, a plain audio call: a small INVITE
       pkill -x sipp; sleep 2   # the video call's callee is still waiting: it never got the INVITE
