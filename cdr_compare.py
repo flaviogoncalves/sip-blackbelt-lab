@@ -16,7 +16,8 @@ is accounted, a failed attempt, the answered call.
 The two sets are matched by Call-ID (both sides see the same Call-ID when no B2BUA sits between them). The report:
   1. the totals of each side: calls, answered, failed by reply code, minutes;
   2. the calls the two sides COUNT differently (answered on one side, failed or missing on the other);
-  3. the answered calls whose DURATIONS differ by at least --min-diff milliseconds (default 500), with the start
+  3. the answered calls whose DURATIONS differ by at least --min-diff milliseconds (default 500), or by less when the
+     two sides still bill them a different number of seconds (every started second or clock ticks), with the start
      times and what each side bills for them;
   4. the gap in billed time and the calls that make it.
 Billing: a call is billed in whole units of --unit seconds (default 60), every started unit counted (ceil). The

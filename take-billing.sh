@@ -2,7 +2,7 @@
 # sip-lab takes for section 8 part B (billing: CDR counts, durations, hung calls, dialers, a reconciliation ticket) and
 # the NAT final ticket (8.12).
 #   sudo ./take-billing.sh <case> <name>
-# Cases (lesson): count (8.8), duration (8.9), hungbill (8.10), ticket ticketfix ticketfix5 (8.11), nat natfix (8.12).
+# Cases (lesson): count (8.8), duration (8.9), hungbill (8.10), ticket ticketfix (8.11), nat natfix (8.12).
 #
 # The billing cases have two sides, each with its own CDRs: OUR proxy (lab.cfg + acc, 192.0.2.10, the customer's side)
 # and THE CARRIER (opensips/carrier.cfg + acc, 192.0.2.40) with the far end behind it (SIPp, 192.0.2.50: the called
@@ -99,11 +99,12 @@ ACC_MODS=$'\n# section 8: a CDR per call (acc with the dialog module), written b
 TRUNK_ARM=$'\t# section 8: a call to a telephone number leaves through the carrier trunk\n\tif (is_method("INVITE") && $rU =~ "^[+0-9][-+0-9.()]{6,}$") {\n\t\troute(outbound);\n\t\texit;\n\t}\n\n'
 OUT_ROUTE=$'\n# section 8: a call to a telephone number: digest, our caller ID, a CDR, out to the carrier (IP trunk)\nroute[outbound] {\n\troute(credentials);\n\tif (!pv_proxy_authorize("lab.sip")) {\n\t\tproxy_challenge("lab.sip", "auth", $var(algs));\n\t\texit;\n\t}\n\tconsume_credentials();\n\tswitch ($au) {\n\t\tcase "2001": $var(did) = "+442079460101"; break;\n\t\tcase "2002": $var(did) = "+442079460102"; break;\n\t\tcase "2003": $var(did) = "+442079460103"; break;\n\t\tdefault: $var(did) = "+442079460100"; break;\n\t}\n\tremove_hf("P-Asserted-Identity");\n\tappend_hf("P-Asserted-Identity: <sip:$var(did)@lab.sip;user=phone>\\r\\n");\n\t$rd = "carrier.example";\n\trecord_route();\n\tdo_accounting("db", "cdr|failed");   # answered calls (cdr) and refused or failed ones (failed)\n\t$acc_extra(caller) = $var(did);\n\t$acc_extra(callee) = $rU;\n\tt_on_reply("acc_times");\n\t$du = "sip:192.0.2.40:5060";   # the carrier\n\tt_relay();\n}\n'
 # the answer and the BYE as each side saw them, to the microsecond (acc's own time column has whole seconds)
-ACC_TIMES=$'\n# section 8: when this side saw the answer (the first 200 OK to the INVITE) and the BYE, to the microsecond, kept in\n# the CDR as answered_at and ended_at (Unix time, seconds.microseconds); acc\'s own time column has whole seconds\nonreply_route[acc_times] {\n\tif ($rs == 200 && is_method("INVITE") && $acc_extra(answered_at) == NULL) {\n\t\t$var(us) = "000000" + $Tsm;\n\t\t$acc_extra(answered_at) = "" + $Ts + "." + $(var(us){s.substr,-6,0});\n\t}\n}\n\nroute[acc_stop] {\n\t$var(us) = "000000" + $Tsm;\n\t$var(at) = "" + $Ts + "." + $(var(us){s.substr,-6,0});\n\tif (load_dialog_ctx($ci)) {\n\t\tacc_load_ctx_from_dlg();\n\t\tif ($acc_extra(ended_at) == NULL)\n\t\t\t$acc_extra(ended_at) = $var(at);\n\t\tacc_unload_ctx_from_dlg();\n\t\tunload_dialog_ctx();\n\t}\n}\n'
+ACC_TIMES=$'\n# section 8: when this side saw the answer (the first 200 OK to the INVITE) and the BYE, to the microsecond, kept in\n# the CDR as answered_at and ended_at (Unix time, seconds.microseconds); acc\'s own time column has whole seconds\nonreply_route[acc_times] {\n\tif ($rs == 200 && is_method("INVITE") && $acc_extra(answered_at) == NULL) {\n\t\troute(stamp);\n\t\t$acc_extra(answered_at) = $var(at);\n\t}\n}\n\n# $Ts and $Tsm are two readings of the clock: near a second boundary the seconds can belong to the other second (one\n# CDR of the first 8.11 take was stamped a second early), so the seconds are read 20 ms away from any boundary (a short wait on $Tsm)\nroute[stamp] {\n\t$var(m) = $Tsm;\n\t$var(d) = 0;\n\tif ($var(m) > 980000) {\n\t\t$var(d) = 1;\n\t\twhile ($Tsm > 500000) {\n\t\t\t$var(w) = 1;\n\t\t}\n\t}\n\tif ($var(m) < 20000 || $var(d) == 1) {\n\t\twhile ($Tsm < 20000) {\n\t\t\t$var(w) = 1;\n\t\t}\n\t}\n\t$var(s) = $Ts - $var(d);\n\t$var(us) = "000000" + $var(m);\n\t$var(at) = "" + $var(s) + "." + $(var(us){s.substr,-6,0});\n}\n\nroute[acc_stop] {\n\troute(stamp);\n\tif (load_dialog_ctx($ci)) {\n\t\tacc_load_ctx_from_dlg();\n\t\tif ($acc_extra(ended_at) == NULL)\n\t\t\t$acc_extra(ended_at) = $var(at);\n\t\tacc_unload_ctx_from_dlg();\n\t\tunload_dialog_ctx();\n\t}\n}\n'
 BYE_HOOK_OLD=$'\t\tif (loose_route()) {\n\t\t\tt_relay();\n'
 BYE_HOOK_NEW=$'\t\tif (loose_route()) {\n\t\t\tif (is_method("BYE"))\n\t\t\t\troute(acc_stop);   # section 8: the BYE time in the CDR\n\t\t\tt_relay();\n'
 trunk() {
   edit "$BYE_HOOK_OLD" "$BYE_HOOK_NEW"; printf '%s' "$ACC_TIMES" >> $CFG
+  edit 'udp_workers=2' $'udp_workers=2\nmax_while_loops = 1000000   # section 8: route[stamp] waits up to ~40 ms on $Tsm'
   edit "$MODS" "$MODS$ACC_MODS"
   edit $'\tif ($fd == "lab.sip") {\n' "$TRUNK_ARM"$'\tif ($fd == "lab.sip") {\n'
   edit $'\n# the lab\'s users' "$OUT_ROUTE"$'\n# the lab\'s users'
@@ -112,6 +113,7 @@ trunk() {
 # ---- the carrier: its own CDR for every call it sends to the far end ----
 cacc() {  # cacc <create_dialog flags> <extra modparams> [script lines before the CDR starts]
   cedit "$BYE_HOOK_OLD" "$BYE_HOOK_NEW"; printf '%s' "$ACC_TIMES" >> $CCFG
+  cedit 'udp_workers=2' $'udp_workers=2\nmax_while_loops = 1000000   # section 8: route[stamp] waits up to ~40 ms on $Tsm'
   cedit "$MODS" "$MODS"$'\n# section 8: the carrier\'s own CDRs (acc with the dialog module), db_flatstore in /tmp/lab-cacc\nloadmodule "dialog.so"\n'"$2"$'loadmodule "db_flatstore.so"\nloadmodule "acc.so"\nmodparam("acc", "db_url", "flatstore:/tmp/lab-cacc")\nmodparam("acc", "extra_fields", "db: caller; callee; answered_at; ended_at")\n'
   cedit $'\t$du = "sip:192.0.2.50:5060";   # the far end\n' $'\t# section 8: the call is the carrier\'s from here on: a dialog and a CDR\n\tcreate_dialog('"${1:+\"$1\"}"$');\n\tdo_accounting("db", "cdr|failed");\n\t$acc_extra(caller) = $(ai{uri.user});\n\t$acc_extra(callee) = $rU;\n\tt_on_reply("acc_times");\n'"${3:-}"$'\t$du = "sip:192.0.2.50:5060";   # the far end\n'
 }
@@ -247,16 +249,16 @@ case $CASE in
               $'\t# lesson 8.10: at most 2 calls at once per calling number (dialog profile "calls"); a lab choice of reply\n\tget_profile_size("calls", $(ai{uri.user}), $var(n));\n\tif ($var(n) >= 2) {\n\t\txlog("L_NOTICE", "carrier: $(ai{uri.user}) already has $var(n) calls up: 503\\n");\n\t\tt_newtran();\n\t\tsend_reply(503, "Call Limit Reached");\n\t\texit;\n\t}\n\tset_dlg_profile("calls", $(ai{uri.user}));\n'
             editf $CCFG 'modparam("acc", "db_url", "flatstore:/tmp/lab-cacc")' $'modparam("acc", "db_url", "flatstore:/tmp/lab-cacc")\nmodparam("acc", "early_media", 1)   # lesson 8.10: a 183 with SDP is accounted too' ;;
   # 8.11: "the carrier bills 3% more minutes than our CDRs": a scaled-down day of 80 calls (10-60 s each, seeded), with
-  # the network's faults of a bad day: every 12th SIP packet each way lost, and two 6 s one-way outages toward the
-  # carrier (at 55 s and 100 s). The carrier keeps a dialog at most 100 s (scaled down from 12 h) and ends it with BYEs (bye-on-timeout).
-  # ticketfix = the same day with the fix: the carrier pings the caller's side of every call with in-dialog OPTIONS
-  # every 10 s (create_dialog options-ping-caller): a call whose caller is gone ends at the first unanswered ping.
-  ticket)   cacc "bye-on-timeout" $'modparam("dialog", "default_timeout", 100)\n' ;;
-  ticketfix|ticketfix5) cacc "bye-on-timeout,options-ping-caller" $'modparam("dialog", "default_timeout", 100)\nmodparam("dialog", "options_ping_interval", 10)\n'
-            # a ping is a non-INVITE transaction: with the lab's fr_timeout of 5 s, a 6 s outage makes every ping of a
-            # live call fail and the carrier hangs those calls up (kept as ticketfix5); ticketfix gives the carrier the
-            # RFC's 32 s (Timer F, 64*T1), so a ping outlives a short outage
-            [ $CASE = ticketfix ] && cedit 'modparam("tm", "fr_timeout", 5)' 'modparam("tm", "fr_timeout", 32)   # lesson 8.11: Timer F as RFC 3261 17.1.2.2 (64*T1)' ;;
+  # the network's faults of a bad day: every 12th SIP packet each way lost, and two one-way outages toward the carrier,
+  # 6 s at 45 s and 12 s at 75 s. Both proxies run RFC 3261's Timer F (tm fr_timeout 32 s = 64*T1, as a real
+  # deployment; lab.cfg's 5 s is a lab shortcut): a BYE sent into an outage shorter than about 31.5 s is resent until a
+  # copy gets through, so the carrier stops its clock late, not never. The carrier keeps a dialog at most 100 s (scaled
+  # down from 12 h) and ends it with BYEs (bye-on-timeout).
+  # ticketfix = the same day once the link between the two companies is repaired: no outages, the every-12th losses stay.
+  ticket|ticketfix)
+            editf $CFG 'modparam("tm", "fr_timeout", 5)' 'modparam("tm", "fr_timeout", 32)   # lesson 8.11: Timer F as RFC 3261 17.1.2.2 (64*T1)'
+            cacc "bye-on-timeout" $'modparam("dialog", "default_timeout", 100)\n'
+            cedit 'modparam("tm", "fr_timeout", 5)' 'modparam("tm", "fr_timeout", 32)   # lesson 8.11: Timer F as RFC 3261 17.1.2.2 (64*T1)' ;;
   *) echo "unknown case $CASE"; exit 2 ;;
 esac
 diff $PLAIN $CFG > captures/$NAME.cfg.diff
@@ -334,7 +336,7 @@ case $CASE in
     # the hung call's dialog until the carrier's timeout (120 s after its answer)
     carrier_idle 300
     sleep 3; mi carrier dialog:list ;;
-  ticket|ticketfix|ticketfix5)
+  ticket|ticketfix)
     # the day: 80 calls of 10-60 s, seeded (the same day in both takes), one per second, numbers +44 161 496 0110-0189
     python3 - captures/$NAME.calls.csv <<'EOF'
 import random, sys
@@ -349,8 +351,10 @@ EOF
     far 240
     calls captures/$NAME.calls.csv day 2001 192.0.2.21 bill-uac.xml 200 -r 1 -l 80 &
     UAC=$!
-    sleep 55; lose to_carrier "outage toward the carrier"; sleep 6; unlose "outage toward the carrier"
-    sleep 39; lose to_carrier "second outage toward the carrier"; sleep 6; unlose "second outage toward the carrier"
+    if [ $CASE = ticket ]; then
+      sleep 45; lose to_carrier "6 s outage toward the carrier"; sleep 6; unlose "6 s outage toward the carrier"
+      sleep 24; lose to_carrier "12 s outage toward the carrier"; sleep 12; unlose "12 s outage toward the carrier"
+    fi
     wait $UAC
     unlose "every 12th SIP packet toward us"; unlose "every 12th SIP packet toward the carrier"
     mi proxy dialog:list; mi carrier dialog:list
