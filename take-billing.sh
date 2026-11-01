@@ -230,8 +230,8 @@ fi
 trunk
 OFFSET=   # a wrong clock for the carrier (duration)
 case $CASE in
-  # 8.8: a burst of 30 calls (2 per second, 8 s each; the called numbers ring 5 s before they answer) and, right after
-  # the last INVITE, the network between us and the carrier stops carrying anything toward us for 7 s (a one-way
+  # 8.8: a burst of 30 calls (2 per second, 8 s each; the called numbers ring 5 s before they answer) and, as the burst
+  # ends, the network between us and the carrier stops carrying anything toward us for 7 s (a one-way
   # outage). The far end answers every call; the carrier sees every answer; the 200 OKs of the calls still ringing
   # when the outage starts never reach us: our tm gives up (CANCEL and 408 after fr_inv_timeout) and our CDR says
   # failed, the carrier's says answered (the far end hangs up with its own BYE when no ACK comes). Both proxies run
