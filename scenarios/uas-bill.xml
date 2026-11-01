@@ -4,6 +4,7 @@
        +44 161 496 0999  an announcement: 183 Session Progress with SDP and audio (early media, RFC 3960), never
                          answered; waits for the CANCEL (200 to it, 487 to the INVITE)
        +44 161 496 0100  answers at once (180 and 200 together)
+       +44 161 496 02xx  rings 5 s (180), then answers 200 (a person who takes a few seconds to answer)
        any other number  rings 1 s (180), then answers 200
      An answered call resends its 200 OK until the ACK comes; if none comes within 32 s the far end ends the call with
      its own BYE (RFC 3261 13.3.1.4: no ACK after 64*T1, the session SHOULD be terminated with a BYE). The resends are
@@ -23,6 +24,7 @@
       <test assign_to="early" variable="e" compare="equal" value="0"/>
       <strcmp assign_to="q" variable="user" value="441614960100"/>
       <test assign_to="quick" variable="q" compare="equal" value="0"/>
+      <ereg regexp="sip:\+4416149602" search_in="hdr" header="To:" check_it="false" assign_to="ring5"/>
     </action>
   </recv>
   <nop next="early" test="early"/>
@@ -41,6 +43,7 @@
     ]]>
   </send>
   <nop next="answer" test="quick"/>
+  <nop next="longring" test="ring5"/>
   <pause milliseconds="1000"/>
   <label id="answer"/>
   <!-- the 2xx retransmissions written out (RFC 3261 13.3.1.4: T1, doubling to T2 = 4 s, until 64*T1 = 32 s): sent at
@@ -229,6 +232,10 @@
   <recv response="200" optional="true" next="end"/>
   <recv response="481" optional="true" next="end"/>
   <recv response="408" next="end"/>
+
+  <label id="longring"/>
+  <pause milliseconds="5000"/>
+  <nop next="answer"/>
 
   <label id="early"/>
   <send>

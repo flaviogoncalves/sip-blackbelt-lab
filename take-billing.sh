@@ -230,11 +230,18 @@ fi
 trunk
 OFFSET=   # a wrong clock for the carrier (duration)
 case $CASE in
-  # 8.8: a burst of 30 calls (2 per second, 8 s each) while the network between us and the carrier stops carrying
-  # anything toward us for 7 s (a one-way outage). The far end answers every call; the carrier sees every answer;
-  # our proxy sees none of the replies of the calls set up in the window: our tm gives up (408 after fr_timeout 5 s)
-  # and our CDR says failed, the carrier's says answered (the far end hangs up with its own BYE when no ACK comes).
-  count)    cacc "" "" ;;
+  # 8.8: a burst of 30 calls (2 per second, 8 s each; the called numbers ring 5 s before they answer) and, right after
+  # the last INVITE, the network between us and the carrier stops carrying anything toward us for 7 s (a one-way
+  # outage). The far end answers every call; the carrier sees every answer; the 200 OKs of the calls still ringing
+  # when the outage starts never reach us: our tm gives up (CANCEL and 408 after fr_inv_timeout) and our CDR says
+  # failed, the carrier's says answered (the far end hangs up with its own BYE when no ACK comes). Both proxies run
+  # RFC 3261's Timer B/F (tm fr_timeout 32 s = 64*T1, as a real deployment; lab.cfg's 5 s is a lab shortcut);
+  # fr_inv_timeout stays at lab.cfg's 30 s. (With the outage inside the burst, our INVITE resends outlive the
+  # carrier's transaction, which tm keeps only a few seconds after the 2xx: the carrier takes a resend for a new
+  # INVITE, and the lab's SIPp far end drops the call on it instead of answering as a phone would.)
+  count)    cacc "" ""
+            editf $CFG 'modparam("tm", "fr_timeout", 5)' 'modparam("tm", "fr_timeout", 32)   # lesson 8.8: Timer B/F as RFC 3261 17.1.1.2 (64*T1)'
+            cedit 'modparam("tm", "fr_timeout", 5)' 'modparam("tm", "fr_timeout", 32)   # lesson 8.8: Timer B/F as RFC 3261 17.1.1.2 (64*T1)' ;;
   # 8.9: one call per cause. 1) answer time: the first two copies of the far end's 200 OK are lost on the way to us
   # (the far end resends it at 0.5 s and 1.5 s): the carrier's clock starts 1.5 s before ours (a 59 s call); 2) session
   # disconnect delay: the first two copies of our BYE are lost on the way to the carrier (our proxy resends it):
@@ -281,11 +288,11 @@ csv() {  # csv <file> <number;ms>...: a SIPp injection file
 
 case $CASE in
   count)
-    csv captures/$NAME.calls.csv $(for i in $(seq 10 39); do echo "+4416149601$i;8000"; done)
-    far 90
-    calls captures/$NAME.calls.csv 2001 2001 192.0.2.21 bill-uac.xml 70 -r 2 -l 30 &
+    csv captures/$NAME.calls.csv $(for i in $(seq 10 39); do echo "+4416149602$i;8000"; done)
+    far 100
+    calls captures/$NAME.calls.csv 2001 2001 192.0.2.21 bill-uac.xml 80 -r 2 -l 30 &
     UAC=$!
-    sleep 5; lose to_us "outage toward us"; sleep 7; unlose "outage toward us"
+    sleep 15; lose to_us "outage toward us"; sleep 7; unlose "outage toward us"
     wait $UAC; mi proxy dialog:list; mi carrier dialog:list
     carrier_idle 60; sleep 6; mi carrier dialog:list ;;
   duration)
