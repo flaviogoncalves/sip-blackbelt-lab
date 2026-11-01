@@ -3,7 +3,8 @@
 # needs a scripted reply (486, 480, 421, early media, a reliable 183, a Reason header, a private Contact; baresip 1.1
 # crashes on its own answermode=early).
 #   sudo ./take-call.sh <case> <name>
-# Cases: basic cancel busy noanswer timeout early hold codec reason prack prack421 private
+# Cases: basic cancel busy noanswer timeout timeout32 early hold codec reason prack prack421 private
+# (timeout32 = timeout with tm fr_timeout 32 s, RFC 3261's Timer B/F of 64*T1, instead of lab.cfg's 5 s: lesson 8.3)
 # Writes captures/<name>.pcap (SIP + RTP + ICMP on lo), .txt (SIP summary), .rtp.txt (RTP streams). Leaves nothing running.
 set -u
 CASE=$1; NAME=$2
@@ -12,6 +13,7 @@ cd "$(dirname "$0")"; mkdir -p captures
 pkill -x opensips 2>/dev/null; pkill -x baresip 2>/dev/null; pkill -x sipp 2>/dev/null; sleep 1
 mkdir -p /run/opensips
 sed "s/@DIGEST_ALGS@/MD5/" opensips/lab.cfg > /tmp/lab-take.cfg
+[ "$CASE" = timeout32 ] && sed -i 's/modparam("tm", "fr_timeout", 5)/modparam("tm", "fr_timeout", 32)   # lesson 8.3: Timer B as RFC 3261 17.1.1.2 (64*T1)/' /tmp/lab-take.cfg
 /usr/sbin/opensips -F -f /tmp/lab-take.cfg > captures/$NAME.opensips.log 2>&1 & OSIPS=$!; sleep 2
 tcpdump -i lo -U -s 0 -w captures/$NAME.pcap 'udp or icmp' 2>/dev/null & TCPD=$!; sleep 1
 S=scenarios
@@ -48,6 +50,8 @@ case $CASE in
             sleep 3; dial; sleep 12 ;;
   timeout)  sipp_reg 2002 192.0.2.22; phone 2001 192.0.2.21 $B1 30000 16
             sleep 3; dial; sleep 12 ;;
+  timeout32) sipp_reg 2002 192.0.2.22; phone 2001 192.0.2.21 $B1 30000 50
+            sleep 3; dial; sleep 40 ;;
   early)    sipp_reg 2002 192.0.2.22; sipp_uas uas-early.xml 20; phone 2001 192.0.2.21 $B1 30000 16
             sleep 3; dial; ctl 9 $B1 hangup; sleep 3 ;;
   hold)     phone 2002 192.0.2.22 $B2 40000 18 ";answermode=auto"; phone 2001 192.0.2.21 $B1 30000 18

@@ -242,12 +242,15 @@ case $CASE in
   # (libfaketime, simulated); 4) rounding: three short calls (0.2, 1.0, 1.8 s) on that clock, placed at chosen
   # fractions of a second, as the deck's slide 189.
   duration) cacc "" "" ;;
-  # 8.10: the carrier keeps a dialog at most 120 s here (dialog default_timeout; the production default is 43200 s,
+  # 8.10: both proxies run RFC 3261's Timer F (tm fr_timeout 32 s = 64*T1, as a real deployment; lab.cfg's 5 s is a
+  # lab shortcut), so the hung call's BYE copies are lost for longer than 32 s. The carrier keeps a dialog at most 120 s here (dialog default_timeout; the production default is 43200 s,
   # 12 hours) and ends it with BYEs both ways when it expires (bye-on-timeout); it allows 2 calls at once per calling
   # number (a dialog profile; the third gets 503 "Call Limit Reached": a lab choice of reply); acc counts early media.
   hungbill) cacc "bye-on-timeout" $'modparam("dialog", "default_timeout", 120)\nmodparam("dialog", "profiles_with_value", "calls")\n' \
               $'\t# lesson 8.10: at most 2 calls at once per calling number (dialog profile "calls"); a lab choice of reply\n\tget_profile_size("calls", $(ai{uri.user}), $var(n));\n\tif ($var(n) >= 2) {\n\t\txlog("L_NOTICE", "carrier: $(ai{uri.user}) already has $var(n) calls up: 503\\n");\n\t\tt_newtran();\n\t\tsend_reply(503, "Call Limit Reached");\n\t\texit;\n\t}\n\tset_dlg_profile("calls", $(ai{uri.user}));\n'
-            editf $CCFG 'modparam("acc", "db_url", "flatstore:/tmp/lab-cacc")' $'modparam("acc", "db_url", "flatstore:/tmp/lab-cacc")\nmodparam("acc", "early_media", 1)   # lesson 8.10: a 183 with SDP is accounted too' ;;
+            editf $CCFG 'modparam("acc", "db_url", "flatstore:/tmp/lab-cacc")' $'modparam("acc", "db_url", "flatstore:/tmp/lab-cacc")\nmodparam("acc", "early_media", 1)   # lesson 8.10: a 183 with SDP is accounted too'
+            editf $CFG 'modparam("tm", "fr_timeout", 5)' 'modparam("tm", "fr_timeout", 32)   # lesson 8.10: Timer F as RFC 3261 17.1.2.2 (64*T1)'
+            cedit 'modparam("tm", "fr_timeout", 5)' 'modparam("tm", "fr_timeout", 32)   # lesson 8.10: Timer F as RFC 3261 17.1.2.2 (64*T1)' ;;
   # 8.11: "the carrier bills 3% more minutes than our CDRs": a scaled-down day of 80 calls (10-60 s each, seeded), with
   # the network's faults of a bad day: every 12th SIP packet each way lost, and two one-way outages toward the carrier,
   # 6 s at 45 s and 12 s at 75 s. Both proxies run RFC 3261's Timer F (tm fr_timeout 32 s = 64*T1, as a real
@@ -313,10 +316,11 @@ case $CASE in
     done
     mi proxy dialog:list; mi carrier dialog:list ;;
   hungbill)
-    far 170
-    # a hung call: 2001's BYE never reaches the carrier (every copy lost toward the carrier for 8 s)
+    far 210
+    # a hung call: 2001's BYE never reaches the carrier (every BYE copy lost toward the carrier from 4 s into the call
+    # until 2 s after 2001's SIPp gives up, just before our proxy's 408, 32 s after the first copy)
     csv captures/$NAME.hung.csv "+441614960142;5000"
-    calls captures/$NAME.hung.csv hung 2001 192.0.2.21 bill-uac.xml 20 &
+    calls captures/$NAME.hung.csv hung 2001 192.0.2.21 bill-uac.xml 50 &
     UAC=$!; sleep 4; lose to_carrier "every BYE" -m string --algo bm --string "BYE sip:"; wait $UAC
     sleep 2; unlose "every BYE"
     mi proxy dialog:list; mi carrier dialog:list
